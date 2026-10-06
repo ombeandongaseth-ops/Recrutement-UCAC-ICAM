@@ -17,7 +17,6 @@ ADMIN_EMAILS = [
     "admin@ucac-icam.com",
 ]
 
-# Recrutement du lundi au vendredi uniquement
 JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(8, 18)]
 
@@ -102,28 +101,42 @@ st.markdown(
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Boutons de navigation agrandis */
+    /* Boutons de navigation fortement agrandis */
     div.stButton > button {
-        width: 100%;
-        min-height: 55px;
-        font-size: 16px !important;
-        font-weight: bold !important;
-        border-radius: 12px !important;
+        width: 100% !important;
+        min-height: 70px !important;
+        font-size: 18px !important;
+        font-weight: 800 !important;
+        border-radius: 14px !important;
         background-color: #1C2026 !important;
         color: #FFFFFF !important;
-        border: 1px solid #2D323B !important;
-        margin-bottom: 8px;
+        border: 2px solid #2D323B !important;
+        margin-bottom: 12px !important;
+        padding: 12px 20px !important;
     }
     div.stButton > button:hover {
         background-color: #1B72E8 !important;
         color: white !important;
         border-color: #1B72E8 !important;
+        transform: translateY(-2px);
+    }
+
+    /* Boîte profil utilisateur en haut à droite */
+    .user-profile-box {
+        text-align: right;
+        background-color: #1C2026;
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid #2D323B;
+        font-size: 13px;
+        color: #A0A5B1;
+        margin-bottom: 10px;
     }
 
     .banner-bronze {
         background-color: #4A2B0F;
         border-radius: 14px;
-        padding: 14px 18px;
+        padding: 16px 20px;
         color: #FCE7D0;
         margin-top: 15px;
         margin-bottom: 15px;
@@ -131,24 +144,24 @@ st.markdown(
     }
     .banner-bronze h4 {
         margin: 0 0 4px 0;
-        font-size: 15px;
+        font-size: 16px;
         color: #FFF;
     }
     .banner-bronze p {
         margin: 0;
-        font-size: 13px;
+        font-size: 14px;
         color: #D3C2B3;
     }
 
     .banner-blue {
         background: linear-gradient(135deg, #1C54CE 0%, #1771EB 100%);
         border-radius: 16px;
-        padding: 18px;
+        padding: 20px;
         color: white;
         margin-bottom: 25px;
     }
     .banner-blue p {
-        font-size: 14px;
+        font-size: 15px;
         margin-bottom: 15px;
         line-height: 1.4;
     }
@@ -214,6 +227,21 @@ if "page_active" not in st.session_state:
 # ---------------------------------------------------------
 if not st.session_state.user_email:
     st.title("Recrutement UCAC-ICAM")
+
+    # Image de bienvenue / Bannière d'accueil
+    if os.path.exists("welcome.png"):
+        st.image("welcome.png", use_container_width=True)
+    else:
+        st.markdown(
+            """
+            <div class="banner-blue" style="text-align: center; padding: 30px;">
+                <h2 style="margin:0; color:white;">🎓 Bienvenue sur le Portail de Recrutement</h2>
+                <p style="margin-top:10px; font-size:16px;">Connectez-vous pour accéder au planning des descentes et des stands.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.subheader("🔑 Connexion")
     st.write("Veuillez saisir votre adresse e-mail pour accéder à la plateforme :")
     
@@ -228,23 +256,30 @@ if not st.session_state.user_email:
                 st.session_state.user_email = email_input
                 if email_input in [e.lower() for e in ADMIN_EMAILS]:
                     st.session_state.is_admin = True
-                    st.success("Bienvenue Administrateur !")
                 else:
                     st.session_state.is_admin = False
-                    st.success("Bienvenue !")
                 st.rerun()
     st.stop()
 
 
 # ---------------------------------------------------------
-# EN-TÊTE PRINCIPAL (Titre unique sans logo)
+# EN-TÊTE PRINCIPAL ET PROFIL ALIGNÉ À DROITE
 # ---------------------------------------------------------
-col_title, col_logout = st.columns([5, 1])
+col_title, col_logout = st.columns([3, 1])
+
 with col_title:
     st.title("Recrutement UCAC-ICAM")
+
 with col_logout:
-    st.write(f"👤 `{st.session_state.user_email}`")
-    if st.button("Déconnexion"):
+    st.markdown(
+        f"""
+        <div class="user-profile-box">
+            👤 <b>{st.session_state.user_email}</b>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("🚪 Déconnexion", key="btn_logout"):
         st.session_state.user_email = None
         st.session_state.is_admin = False
         st.rerun()
@@ -417,7 +452,7 @@ elif st.session_state.page_active == "Stands":
                 unsafe_allow_html=True,
             )
 
-# --- PAGE ADMIN (SÉCURISÉE & DÉVERROUILLÉE AUTOMATIQUEMENT) ---
+# --- PAGE ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     st.subheader("⚙️ Zone d'Administration")
 
