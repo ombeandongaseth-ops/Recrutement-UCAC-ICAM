@@ -135,34 +135,39 @@ st.markdown(
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     
-    /* Boutons de navigation agrandis */
+    /* TOUS les boutons Streamlit : taille harmonisée et agrandie */
     div.stButton > button {{
         width: 100% !important;
-        min-height: 65px !important;
+        height: 60px !important;
+        min-height: 60px !important;
         font-size: 18px !important;
         font-weight: 700 !important;
         border-radius: 12px !important;
-        background-color: rgba(28, 32, 38, 0.85) !important;
+        background-color: rgba(28, 32, 38, 0.90) !important;
         color: #FFFFFF !important;
-        border: 2px solid #2D323B !important;
-        margin-bottom: 10px !important;
-        padding: 10px 16px !important;
-        backdrop-filter: blur(5px);
+        border: 2px solid #3A3F4D !important;
+        padding: 8px 16px !important;
+        backdrop-filter: blur(8px);
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.2s ease-in-out !important;
     }}
     div.stButton > button:hover {{
         background-color: #1B72E8 !important;
-        color: white !important;
+        color: #FFFFFF !important;
         border-color: #1B72E8 !important;
+        transform: translateY(-2px);
     }}
 
     /* Profil utilisateur dans le coin supérieur droit */
     .user-profile-box {{
-        text-align: right;
+        text-align: center;
         background-color: rgba(28, 32, 38, 0.85);
-        padding: 8px 14px;
-        border-radius: 8px;
-        border: 1px solid #2D323B;
-        font-size: 13px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #3A3F4D;
+        font-size: 14px;
         color: #A0A5B1;
         margin-bottom: 8px;
         backdrop-filter: blur(5px);
@@ -327,28 +332,28 @@ else:
     nav_cols = st.columns(4)
 
 with nav_cols[0]:
-    if st.button("📝 S'inscrire"):
+    if st.button("📝 S'inscrire", key="nav_inscrire"):
         st.session_state.page_active = "Inscription"
         st.rerun()
 
 with nav_cols[1]:
-    if st.button("📅 Planning"):
+    if st.button("📅 Planning", key="nav_planning"):
         st.session_state.page_active = "Accueil"
         st.rerun()
 
 with nav_cols[2]:
-    if st.button("🏫 Écoles"):
+    if st.button("🏫 Écoles", key="nav_ecoles"):
         st.session_state.page_active = "Ecoles"
         st.rerun()
 
 with nav_cols[3]:
-    if st.button("⛺ Stands"):
+    if st.button("⛺ Stands", key="nav_stands"):
         st.session_state.page_active = "Stands"
         st.rerun()
 
 if st.session_state.is_admin:
     with nav_cols[4]:
-        if st.button("⚙️ Admin"):
+        if st.button("⚙️ Admin", key="nav_admin"):
             st.session_state.page_active = "Admin"
             st.rerun()
 
