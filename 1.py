@@ -111,7 +111,7 @@ bg_data = Obtenir_bg_base64()
 if bg_data:
     bg_css = f"""
     .stApp {{
-        background: linear-gradient(rgba(18, 20, 23, 0.75), rgba(18, 20, 23, 0.85)), url("{bg_data}");
+        background: linear-gradient(rgba(18, 20, 23, 0.70), rgba(18, 20, 23, 0.85)), url("{bg_data}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -135,18 +135,18 @@ st.markdown(
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     
-    /* TOUS les boutons Streamlit : taille harmonisée et agrandie */
+    /* Style global des boutons de la barre de navigation */
     div.stButton > button {{
         width: 100% !important;
-        height: 60px !important;
-        min-height: 60px !important;
-        font-size: 18px !important;
+        height: 70px !important;
+        min-height: 70px !important;
+        font-size: 19px !important;
         font-weight: 700 !important;
-        border-radius: 12px !important;
-        background-color: rgba(28, 32, 38, 0.90) !important;
+        border-radius: 14px !important;
+        background-color: rgba(28, 32, 38, 0.85) !important;
         color: #FFFFFF !important;
         border: 2px solid #3A3F4D !important;
-        padding: 8px 16px !important;
+        padding: 10px !important;
         backdrop-filter: blur(8px);
         display: flex !important;
         align-items: center !important;
@@ -162,15 +162,15 @@ st.markdown(
 
     /* Profil utilisateur dans le coin supérieur droit */
     .user-profile-box {{
-        text-align: center;
+        text-align: right;
         background-color: rgba(28, 32, 38, 0.85);
-        padding: 10px 14px;
-        border-radius: 10px;
+        padding: 10px 16px;
+        border-radius: 12px;
         border: 1px solid #3A3F4D;
         font-size: 14px;
         color: #A0A5B1;
         margin-bottom: 8px;
-        backdrop-filter: blur(5px);
+        backdrop-filter: blur(8px);
     }}
 
     .banner-bronze {{
@@ -243,6 +243,32 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
+# MUSIQUE DE FOND (OPTIONNELLE)
+# ---------------------------------------------------------
+def jouer_musique_de_fond():
+    fichiers_audio = ["musique.mp3", "background.mp3", "musique.wav"]
+    audio_path = None
+    for f in fichiers_audio:
+        if os.path.exists(f):
+            audio_path = f
+            break
+    if audio_path:
+        with open(audio_path, "rb") as f:
+            audio_bytes = f.read()
+            encoded_audio = base64.b64encode(audio_bytes).decode()
+            mime = "audio/mp3" if audio_path.endswith(".mp3") else "audio/wav"
+            st.markdown(
+                f"""
+                <audio autoplay loop controls style="width: 100%; height: 32px; opacity: 0.7; margin-bottom: 10px;">
+                    <source src="data:{mime};base64,{encoded_audio}" type="{mime}">
+                </audio>
+                """,
+                unsafe_allow_html=True,
+            )
+
+jouer_musique_de_fond()
+
+# ---------------------------------------------------------
 # INITIALISATION DES ÉTATS DE SESSION
 # ---------------------------------------------------------
 if "user_email" not in st.session_state:
@@ -302,9 +328,9 @@ if not st.session_state.user_email:
     st.stop()
 
 # ---------------------------------------------------------
-# EN-TÊTE ET PROFIL UTILISATEUR
+# EN-TÊTE ET PROFIL UTILISATEUR / BOUTON CACHÉ ENGRENAGE
 # ---------------------------------------------------------
-col_title, col_logout = st.columns([3, 1])
+col_title, col_logout = st.columns([2.5, 1.5])
 
 with col_title:
     st.title("Recrutement UCAC-ICAM")
@@ -318,18 +344,26 @@ with col_logout:
         """,
         unsafe_allow_html=True,
     )
-    if st.button("🚪 Déconnexion", key="btn_logout"):
-        st.session_state.user_email = None
-        st.session_state.is_admin = False
-        st.rerun()
+    
+    # Alignement du bouton Déconnexion et de l'icône Engrenage d'administration
+    col_btn_dec, col_btn_gear = st.columns([3, 1])
+    with col_btn_dec:
+        if st.button("🚪 Déconnexion", key="btn_logout"):
+            st.session_state.user_email = None
+            st.session_state.is_admin = False
+            st.rerun()
+            
+    with col_btn_gear:
+        if st.session_state.is_admin:
+            # Engrenage discret réservé uniquement aux administrateurs
+            if st.button("⚙️", key="btn_admin_gear", help="Panneau d'administration"):
+                st.session_state.page_active = "Admin"
+                st.rerun()
 
 # ---------------------------------------------------------
-# NAVIGATION
+# NAVIGATION PRINCIPALE (4 GRANDS BOUTONS)
 # ---------------------------------------------------------
-if st.session_state.is_admin:
-    nav_cols = st.columns(5)
-else:
-    nav_cols = st.columns(4)
+nav_cols = st.columns(4)
 
 with nav_cols[0]:
     if st.button("📝 S'inscrire", key="nav_inscrire"):
@@ -350,12 +384,6 @@ with nav_cols[3]:
     if st.button("⛺ Stands", key="nav_stands"):
         st.session_state.page_active = "Stands"
         st.rerun()
-
-if st.session_state.is_admin:
-    with nav_cols[4]:
-        if st.button("⚙️ Admin", key="nav_admin"):
-            st.session_state.page_active = "Admin"
-            st.rerun()
 
 st.markdown("---")
 
@@ -564,14 +592,3 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 sauvegarder_csv_liste(
                     FICHIER_STANDS, st.session_state.stands_cibles
                 )
-                st.rerun()
-
-    with tab3:
-        if st.session_state.candidats:
-            st.dataframe(pd.DataFrame(st.session_state.candidats))
-        else:
-            st.info("Aucun volontaire inscrit pour le moment.")
-
-# Pied de page
-st.markdown("---")
-st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
