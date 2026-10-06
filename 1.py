@@ -138,8 +138,8 @@ st.markdown(
     /* Boutons de la barre de navigation principale */
     div.stButton > button {{
         width: 100% !important;
-        height: 65px !important;
-        min-height: 65px !important;
+        height: 60px !important;
+        min-height: 60px !important;
         font-size: 15px !important;
         font-weight: 700 !important;
         border-radius: 12px !important;
@@ -307,7 +307,7 @@ if not st.session_state.user_email:
         
         if submit_login:
             if not email_input or "@" not in email_input:
-                st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
+                st.error("⚠️️ Veuillez entrer une adresse e-mail valide.")
             else:
                 st.session_state.user_email = email_input
                 if email_input in [e.lower() for e in ADMIN_EMAILS]:
@@ -318,16 +318,16 @@ if not st.session_state.user_email:
     st.stop()
 
 # ---------------------------------------------------------
-# EN-TÊTE ET PROFIL UTILISATEUR
+# EN-TÊTE ET PROFIL UTILISATEUR EN HAUT À DROITE
 # ---------------------------------------------------------
-col_title, col_user_area = st.columns([2.0, 2.0])
+col_title, col_user_area = st.columns([1.8, 2.2])
 
 with col_title:
     st.title("Recrutement UCAC-ICAM")
 
 with col_user_area:
     if st.session_state.is_admin:
-        col_user_btn, col_gear = st.columns([3, 1])
+        col_empty, col_user_btn, col_gear = st.columns([0.5, 3, 0.8])
         with col_user_btn:
             if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
                 st.session_state.show_logout_menu = not st.session_state.show_logout_menu
@@ -337,14 +337,14 @@ with col_user_area:
                 st.session_state.page_active = "Admin"
                 st.rerun()
     else:
-        col_empty, col_user_btn = st.columns([1, 3])
+        col_empty, col_user_btn = st.columns([1.2, 3])
         with col_user_btn:
             if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
                 st.session_state.show_logout_menu = not st.session_state.show_logout_menu
                 st.rerun()
 
     if st.session_state.show_logout_menu:
-        col_sub_empty, col_logout_sub = st.columns([2, 2])
+        col_sub_empty, col_logout_sub = st.columns([1.5, 2.5])
         with col_logout_sub:
             if st.button("🚪 Déconnexion", key="btn_confirm_logout"):
                 st.session_state.user_email = None
@@ -565,7 +565,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                     st.success("Créneau ajouté au planning !")
                     st.rerun()
                 else:
-                    st.error("⚠️️ Veillez choisir un lieu et attribuer au moins un volontaire.")
+                    st.error("⚠ Veillez choisir un lieu et attribuer au moins un volontaire.")
 
     with tab2:
         ne = st.text_input("Nouvelle école :")
@@ -580,4 +580,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         ns = st.text_input("Nouveau stand :")
         if st.button("Ajouter stand"):
             if ns:
-                st.session_state.stands_cibles.append(ns)
+                st.session_stat
