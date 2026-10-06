@@ -318,7 +318,7 @@ if not st.session_state.user_email:
     st.stop()
 
 # ---------------------------------------------------------
-# EN-TÊTE ET PROFIL UTILISATION
+# EN-TÊTE ET PROFIL UTILISATEUR
 # ---------------------------------------------------------
 if st.session_state.is_admin:
     col_title, col_user_btn, col_gear = st.columns([5, 4, 1])
@@ -351,7 +351,7 @@ if st.session_state.show_logout_menu:
             st.rerun()
 
 # ---------------------------------------------------------
-# NAVIGATION PRINCIPALE (4 BOUTONS)
+# NAVIGATION PRINCIPALE
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 
@@ -378,12 +378,10 @@ with nav_cols[3]:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# PAGES
+# GESTION DES PAGES
 # ---------------------------------------------------------
 
-# --- ACCUEIL / PLANNING DES DESCENTES ---
 if st.session_state.page_active == "Accueil":
-
     st.markdown(
         """
         <div class="banner-bronze">
@@ -449,7 +447,6 @@ if st.session_state.page_active == "Accueil":
                     unsafe_allow_html=True,
                 )
 
-# --- INSCRIPTION ---
 elif st.session_state.page_active == "Inscription":
     st.subheader("📝 Inscription au recrutement")
 
@@ -484,7 +481,6 @@ elif st.session_state.page_active == "Inscription":
                 sauvegarder_candidats(st.session_state.candidats)
                 st.success(f"✅ Inscription enregistrée pour {nom} !")
 
-# --- ÉCOLES ---
 elif st.session_state.page_active == "Ecoles":
     st.subheader("🏫 Écoles de descentes")
     if not st.session_state.ecoles_cibles:
@@ -496,7 +492,6 @@ elif st.session_state.page_active == "Ecoles":
                 unsafe_allow_html=True,
             )
 
-# --- STANDS DE SENSIBILISATION ---
 elif st.session_state.page_active == "Stands":
     st.subheader("⛺ Stands de sensibilisation")
     if not st.session_state.stands_cibles:
@@ -508,7 +503,6 @@ elif st.session_state.page_active == "Stands":
                 unsafe_allow_html=True,
             )
 
-# --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     st.subheader("⚙️ Zone d'Administration")
 
@@ -581,4 +575,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 st.rerun()
 
     with tab3:
-        if
+        if st.session_state.candidats:
+            st.dataframe(pd.DataFrame(st.session_state.candidats))
+        else:
+            st.info("Aucu
