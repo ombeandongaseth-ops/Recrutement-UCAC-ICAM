@@ -1,6 +1,5 @@
 import csv
 import os
-import random
 import pandas as pd
 import streamlit as st
 
@@ -10,14 +9,14 @@ FICHIER_STANDS = "stands_recrutement.csv"
 FICHIER_PLANNING = "planning_recrutement.csv"
 
 # ---------------------------------------------------------
-# SÉCURITÉ ADMIN : Liste des e-mails autorisés & Mot de passe
+# SÉCURITÉ ADMIN : Liste des adresses e-mail autorisées
 # ---------------------------------------------------------
 ADMIN_EMAILS = [
     "ninon.ombeandonga@2030.ucac-icam.com",
+    "gedidia.mabahou@2030.ucac-icam.com",
     "admin@ucac-icam.com",
-    # Ajoutez ici d'autres adresses e-mail d'administrateurs autorisés
+    # Ajoutez d'autres e-mails autorisés ici si besoin
 ]
-MOT_DE_PASSE_ADMIN = "ucac2026"
 
 JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 
@@ -100,7 +99,7 @@ st.set_page_config(
 st.title("🎓 Campagne de Recrutement — UCAC-ICAM")
 st.caption("Gestion des Descentes dans les Écoles & Animation des Stands")
 
-# Initialisation des états
+# Initialisation des états de session
 if "candidats" not in st.session_state:
     st.session_state.candidats = charger_candidats()
 
@@ -231,7 +230,7 @@ elif menu == "🔍 Filtrer Volontaires & Lieux":
         st.dataframe(df_cand, use_container_width=True)
 
 # ---------------------------------------------------------
-# 5. Espace Administration (Sécurisé)
+# 5. Espace Administration (Sécurisé par Adresse E-mail uniquement)
 # ---------------------------------------------------------
 elif menu == "🔒 Espace Administration":
     st.subheader("🔒 Zone d'Administration — Gestion du Recrutement")
@@ -389,19 +388,18 @@ elif menu == "🔒 Espace Administration":
                     mime="text/csv",
                 )
 
-    # Inscription/Connexion administrateur
+    # Identification par e-mail uniquement
     else:
-        st.info("Veuillez saisir votre adresse e-mail administrateur et le mot de passe.")
+        st.info("Veuillez saisir votre adresse e-mail autorisée pour déverrouiller l'espace administrateur.")
         email_saisi = st.text_input("Adresse e-mail administrateur :").strip().lower()
-        pwd_saisi = st.text_input("Mot de passe :", type="password")
 
         if st.button("Se connecter"):
-            if email_saisi not in [e.lower() for e in ADMIN_EMAILS]:
+            if not email_saisi:
+                st.warning("⚠️ Veuillez entrer une adresse e-mail.")
+            elif email_saisi not in [e.lower() for e in ADMIN_EMAILS]:
                 st.error("❌ Cette adresse e-mail n'est pas autorisée à accéder à l'espace administration.")
-            elif pwd_saisi != MOT_DE_PASSE_ADMIN:
-                st.error("❌ Mot de passe incorrect.")
             else:
                 st.session_state.admin_connecte = True
                 st.session_state.admin_email = email_saisi
-                st.success("Connexion réussie !")
+                st.success(f"Bienvenue {email_saisi} ! Connexion réussie.")
                 st.rerun()
