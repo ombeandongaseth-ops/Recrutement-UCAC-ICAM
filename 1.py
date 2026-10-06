@@ -135,7 +135,7 @@ st.markdown(
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     
-    /* Boutons de la barre de navigation principal */
+    /* Boutons de la barre de navigation principale */
     div.stButton > button {{
         width: 100% !important;
         height: 65px !important;
@@ -158,19 +158,6 @@ st.markdown(
         color: #FFFFFF !important;
         border-color: #1B72E8 !important;
         transform: translateY(-2px);
-    }}
-
-    /* Nom d'utilisateur */
-    .user-profile-box {{
-        background-color: rgba(28, 32, 38, 0.85);
-        padding: 6px 14px;
-        border-radius: 8px;
-        border: 1px solid #3A3F4D;
-        font-size: 13px;
-        color: #D0D5E0;
-        backdrop-filter: blur(8px);
-        display: inline-block;
-        margin-bottom: 6px;
     }}
 
     .banner-bronze {{
@@ -277,6 +264,9 @@ if "user_email" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
+if "show_logout_menu" not in st.session_state:
+    st.session_state.show_logout_menu = False
+
 if "candidats" not in st.session_state:
     st.session_state.candidats = charger_candidats()
 
@@ -330,44 +320,40 @@ if not st.session_state.user_email:
 # ---------------------------------------------------------
 # EN-TÊTE ET PROFIL UTILISATEUR
 # ---------------------------------------------------------
-col_title, col_user_area = st.columns([2.2, 1.8])
+col_title, col_user_area = st.columns([2.0, 2.0])
 
 with col_title:
     st.title("Recrutement UCAC-ICAM")
 
 with col_user_area:
-    # 1. Nom d'utilisateur (tout en haut à droite)
-    st.markdown(
-        f"""
-        <div style="text-align: right;">
-            <div class="user-profile-box">
-                👤 <b>{st.session_state.user_email}</b>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    # 2. Bouton Déconnexion + Engrenage côte à côte, directement EN BAS du nom d'utilisateur
     if st.session_state.is_admin:
-        col_dec, col_gear = st.columns([3, 1])
-        with col_dec:
-            if st.button("🚪 Déconnexion", key="btn_logout"):
-                st.session_state.user_email = None
-                st.session_state.is_admin = False
+        col_user_btn, col_gear = st.columns([3, 1])
+        with col_user_btn:
+            # Le nom d'utilisateur est désormais un bouton cliquable
+            if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
+                st.session_state.show_logout_menu = not st.session_state.show_logout_menu
                 st.rerun()
         with col_gear:
-            # L'engrenage n'apparaît QUE pour les administrateurs
+            # L'engrenage apparaît UNIQUEMENT pour les administrateurs
             if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
                 st.session_state.page_active = "Admin"
                 st.rerun()
     else:
-        # Utilisateur normal : bouton Déconnexion occupant la largeur à droite
-        col_empty, col_dec = st.columns([2, 2])
-        with col_dec:
-            if st.button("🚪 Déconnexion", key="btn_logout"):
+        col_empty, col_user_btn = st.columns([1, 3])
+        with col_user_btn:
+            # Le nom d'utilisateur est un bouton cliquable
+            if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
+                st.session_state.show_logout_menu = not st.session_state.show_logout_menu
+                st.rerun()
+
+    # Si l'utilisateur clique sur son nom, le bouton de déconnexion apparaît sous son nom
+    if st.session_state.show_logout_menu:
+        col_sub_empty, col_logout_sub = st.columns([2, 2])
+        with col_logout_sub:
+            if st.button("🚪 Déconnexion", key="btn_confirm_logout"):
                 st.session_state.user_email = None
                 st.session_state.is_admin = False
+                st.session_state.show_logout_menu = False
                 st.rerun()
 
 # ---------------------------------------------------------
@@ -530,7 +516,7 @@ elif st.session_state.page_active == "Stands":
 
 # --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
-    st.subheader("⚙️ Zone d'Administration")
+    st.subheader("⚙️️ Zone d'Administration")
 
     tab1, tab2, tab3 = st.tabs(
         ["📅 Planifier Créneau", "🏫/⛺ Écoles & Stands", "👥 Volontaires"]
@@ -589,4 +575,5 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         ne = st.text_input("Nouvelle école :")
         if st.button("Ajouter école"):
             if ne:
-                st.ses
+                st.session_state.ecoles_cibles.append(ne)
+                sauvegarder_csv_liste(
