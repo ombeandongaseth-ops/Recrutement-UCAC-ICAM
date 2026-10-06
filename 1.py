@@ -1,3 +1,4 @@
+import base64
 import csv
 import os
 import pandas as pd
@@ -81,6 +82,22 @@ def sauvegarder_planning(planning):
         writer.writerows(planning)
 
 # ---------------------------------------------------------
+# FONCTION DE DÉTECTION ET CONVERSION D'IMAGE EN ARRIÈRE-PLAN
+# ---------------------------------------------------------
+def Obtenir_bg_base64():
+    image_path = None
+    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
+        if os.path.exists(ext):
+            image_path = ext
+            break
+    if image_path:
+        with open(image_path, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode()
+            mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
+            return f"data:{mime};base64,{encoded}"
+    return None
+
+# ---------------------------------------------------------
 # CONFIGURATION & STYLE CSS
 # ---------------------------------------------------------
 st.set_page_config(
@@ -89,82 +106,103 @@ st.set_page_config(
     layout="wide",
 )
 
-st.markdown(
+bg_data = Obtenir_bg_base64()
+
+if bg_data:
+    bg_css = f"""
+    .stApp {{
+        background: linear-gradient(rgba(18, 20, 23, 0.75), rgba(18, 20, 23, 0.85)), url("{bg_data}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        color: #FFFFFF;
+    }}
     """
-    <style>
+else:
+    bg_css = """
     .stApp {
         background-color: #121417;
         color: #FFFFFF;
     }
+    """
+
+st.markdown(
+    f"""
+    <style>
+    {bg_css}
     
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+    #MainMenu {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
     
     /* Boutons de navigation agrandis */
-    div.stButton > button {
+    div.stButton > button {{
         width: 100% !important;
         min-height: 65px !important;
         font-size: 18px !important;
         font-weight: 700 !important;
         border-radius: 12px !important;
-        background-color: #1C2026 !important;
+        background-color: rgba(28, 32, 38, 0.85) !important;
         color: #FFFFFF !important;
         border: 2px solid #2D323B !important;
         margin-bottom: 10px !important;
         padding: 10px 16px !important;
-    }
-    div.stButton > button:hover {
+        backdrop-filter: blur(5px);
+    }}
+    div.stButton > button:hover {{
         background-color: #1B72E8 !important;
         color: white !important;
         border-color: #1B72E8 !important;
-    }
+    }}
 
     /* Profil utilisateur dans le coin supérieur droit */
-    .user-profile-box {
+    .user-profile-box {{
         text-align: right;
-        background-color: #1C2026;
+        background-color: rgba(28, 32, 38, 0.85);
         padding: 8px 14px;
         border-radius: 8px;
         border: 1px solid #2D323B;
         font-size: 13px;
         color: #A0A5B1;
         margin-bottom: 8px;
-    }
+        backdrop-filter: blur(5px);
+    }}
 
-    .banner-bronze {
-        background-color: #4A2B0F;
+    .banner-bronze {{
+        background-color: rgba(74, 43, 15, 0.85);
         border-radius: 12px;
         padding: 16px 20px;
         color: #FCE7D0;
         margin-top: 15px;
         margin-bottom: 15px;
         border: 1px solid #6E3F15;
-    }
-    .banner-bronze h4 {
+        backdrop-filter: blur(5px);
+    }}
+    .banner-bronze h4 {{
         margin: 0 0 4px 0;
         font-size: 16px;
         color: #FFF;
-    }
-    .banner-bronze p {
+    }}
+    .banner-bronze p {{
         margin: 0;
         font-size: 14px;
         color: #D3C2B3;
-    }
+    }}
 
-    .banner-blue {
-        background: linear-gradient(135deg, #1C54CE 0%, #1771EB 100%);
+    .banner-blue {{
+        background: linear-gradient(135deg, rgba(28, 84, 206, 0.85) 0%, rgba(23, 113, 235, 0.85) 100%);
         border-radius: 14px;
         padding: 20px;
         color: white;
         margin-bottom: 25px;
-    }
-    .banner-blue p {
+        backdrop-filter: blur(5px);
+    }}
+    .banner-blue p {{
         font-size: 15px;
         margin-bottom: 15px;
         line-height: 1.4;
-    }
-    .btn-pill {
+    }}
+    .btn-pill {{
         background-color: #0A1128;
         color: white;
         border-radius: 20px;
@@ -172,27 +210,28 @@ st.markdown(
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
-    }
+    }}
 
-    .day-header {
+    .day-header {{
         font-size: 18px;
         font-weight: bold;
         color: #FFFFFF;
         margin-top: 20px;
         margin-bottom: 8px;
-    }
-    .empty-event {
-        color: #717680;
+    }}
+    .empty-event {{
+        color: #A0A5B1;
         font-size: 14px;
         margin-bottom: 20px;
-    }
-    .event-card {
-        background-color: #1C2026;
+    }}
+    .event-card {{
+        background-color: rgba(28, 32, 38, 0.85);
         border-radius: 12px;
         padding: 14px 18px;
         margin-bottom: 12px;
         border-left: 4px solid #1B72E8;
-    }
+        backdrop-filter: blur(5px);
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -228,25 +267,15 @@ if "page_active" not in st.session_state:
 if not st.session_state.user_email:
     st.title("Recrutement UCAC-ICAM")
 
-    # Détection de l'image (welcome.jpg, welcome.png, welcome.jpeg)
-    image_path = None
-    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
-        if os.path.exists(ext):
-            image_path = ext
-            break
-
-    if image_path:
-        st.image(image_path, use_container_width=True)
-    else:
-        st.markdown(
-            """
-            <div class="banner-blue" style="text-align: center; padding: 30px;">
-                <h2 style="margin:0; color:white;">🎓 Bienvenue sur le Portail de Recrutement</h2>
-                <p style="margin-top:10px; font-size:16px;">Connectez-vous pour accéder au planning des descentes et des stands.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        """
+        <div class="banner-blue" style="text-align: center; padding: 30px;">
+            <h2 style="margin:0; color:white;">🎓 Bienvenue sur le Portail de Recrutement</h2>
+            <p style="margin-top:10px; font-size:16px;">Connectez-vous pour accéder au planning des descentes et des stands.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.subheader("🔑 Connexion")
     st.write("Veuillez saisir votre adresse e-mail pour accéder à la plateforme :")
