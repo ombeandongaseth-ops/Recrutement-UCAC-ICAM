@@ -3,14 +3,14 @@ import os
 import pandas as pd
 import streamlit as st
 
+# ---------------------------------------------------------
+# CONSTANTES ET FICHIERS
+# ---------------------------------------------------------
 FICHIER_CANDIDATS = "candidats_recrutement_ucac_icam.csv"
 FICHIER_ECOLES = "ecoles_recrutement.csv"
 FICHIER_STANDS = "stands_recrutement.csv"
 FICHIER_PLANNING = "planning_recrutement.csv"
 
-# ---------------------------------------------------------
-# SÉCURITÉ ADMIN : Liste des e-mails autorisés
-# ---------------------------------------------------------
 ADMIN_EMAILS = [
     "ninon.ombeandonga@2030.ucac-icam.com",
     "gedidia.mabahou@2030.ucac-icam.com",
@@ -21,7 +21,7 @@ JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(8, 18)]
 
 # ---------------------------------------------------------
-# Persistance des données (CSV)
+# FONCTIONS DE PERSISTANCE CSV
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
     if not os.path.exists(fichier):
@@ -81,7 +81,7 @@ def sauvegarder_planning(planning):
         writer.writerows(planning)
 
 # ---------------------------------------------------------
-# Configuration & Style CSS
+# CONFIGURATION & STYLE CSS
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Recrutement UCAC-ICAM",
@@ -101,41 +101,40 @@ st.markdown(
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Boutons de navigation fortement agrandis */
+    /* Boutons de navigation agrandis */
     div.stButton > button {
         width: 100% !important;
-        min-height: 70px !important;
+        min-height: 65px !important;
         font-size: 18px !important;
-        font-weight: 800 !important;
-        border-radius: 14px !important;
+        font-weight: 700 !important;
+        border-radius: 12px !important;
         background-color: #1C2026 !important;
         color: #FFFFFF !important;
         border: 2px solid #2D323B !important;
-        margin-bottom: 12px !important;
-        padding: 12px 20px !important;
+        margin-bottom: 10px !important;
+        padding: 10px 16px !important;
     }
     div.stButton > button:hover {
         background-color: #1B72E8 !important;
         color: white !important;
         border-color: #1B72E8 !important;
-        transform: translateY(-2px);
     }
 
-    /* Boîte profil utilisateur en haut à droite */
+    /* Profil utilisateur dans le coin supérieur droit */
     .user-profile-box {
         text-align: right;
         background-color: #1C2026;
         padding: 8px 14px;
-        border-radius: 10px;
+        border-radius: 8px;
         border: 1px solid #2D323B;
         font-size: 13px;
         color: #A0A5B1;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
 
     .banner-bronze {
         background-color: #4A2B0F;
-        border-radius: 14px;
+        border-radius: 12px;
         padding: 16px 20px;
         color: #FCE7D0;
         margin-top: 15px;
@@ -155,7 +154,7 @@ st.markdown(
 
     .banner-blue {
         background: linear-gradient(135deg, #1C54CE 0%, #1771EB 100%);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 20px;
         color: white;
         margin-bottom: 25px;
@@ -189,7 +188,7 @@ st.markdown(
     }
     .event-card {
         background-color: #1C2026;
-        border-radius: 14px;
+        border-radius: 12px;
         padding: 14px 18px;
         margin-bottom: 12px;
         border-left: 4px solid #1B72E8;
@@ -199,7 +198,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Initialisation de la session
+# ---------------------------------------------------------
+# INITIALISATION DES ÉTATS DE SESSION
+# ---------------------------------------------------------
 if "user_email" not in st.session_state:
     st.session_state.user_email = None
 
@@ -221,16 +222,21 @@ if "planning" not in st.session_state:
 if "page_active" not in st.session_state:
     st.session_state.page_active = "Accueil"
 
-
 # ---------------------------------------------------------
-# ÉCRAN DE CONNEXION OBLIGATOIRE À L'ENTRÉE
+# ÉCRAN DE CONNEXION INITIALE
 # ---------------------------------------------------------
 if not st.session_state.user_email:
     st.title("Recrutement UCAC-ICAM")
 
-    # Image de bienvenue / Bannière d'accueil
-    if os.path.exists("welcome.png"):
-        st.image("welcome.png", use_container_width=True)
+    # Détection de l'image (welcome.jpg, welcome.png, welcome.jpeg)
+    image_path = None
+    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
+        if os.path.exists(ext):
+            image_path = ext
+            break
+
+    if image_path:
+        st.image(image_path, use_container_width=True)
     else:
         st.markdown(
             """
@@ -261,9 +267,8 @@ if not st.session_state.user_email:
                 st.rerun()
     st.stop()
 
-
 # ---------------------------------------------------------
-# EN-TÊTE PRINCIPAL ET PROFIL ALIGNÉ À DROITE
+# EN-TÊTE ET PROFIL UTILISATEUR
 # ---------------------------------------------------------
 col_title, col_logout = st.columns([3, 1])
 
@@ -284,9 +289,8 @@ with col_logout:
         st.session_state.is_admin = False
         st.rerun()
 
-
 # ---------------------------------------------------------
-# BOUTONS DE NAVIGATION AGRANDIS
+# NAVIGATION
 # ---------------------------------------------------------
 if st.session_state.is_admin:
     nav_cols = st.columns(5)
@@ -322,10 +326,10 @@ if st.session_state.is_admin:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# CONTENU DE LA PAGE SÉLECTIONNÉE
+# PAGES
 # ---------------------------------------------------------
 
-# --- PAGE ACCUEIL / PLANNING ---
+# --- ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
 
     st.markdown(
@@ -393,7 +397,7 @@ if st.session_state.page_active == "Accueil":
                     unsafe_allow_html=True,
                 )
 
-# --- PAGE INSCRIPTION VOLONTAIRE ---
+# --- INSCRIPTION ---
 elif st.session_state.page_active == "Inscription":
     st.subheader("📝 Inscription d'un Volontaire")
 
@@ -428,7 +432,7 @@ elif st.session_state.page_active == "Inscription":
                 sauvegarder_candidats(st.session_state.candidats)
                 st.success(f"✅ Inscription enregistrée pour {nom} !")
 
-# --- PAGE ÉCOLES ---
+# --- ÉCOLES ---
 elif st.session_state.page_active == "Ecoles":
     st.subheader("🏫 Écoles cibles à visiter")
     if not st.session_state.ecoles_cibles:
@@ -440,7 +444,7 @@ elif st.session_state.page_active == "Ecoles":
                 unsafe_allow_html=True,
             )
 
-# --- PAGE STANDS ---
+# --- STANDS ---
 elif st.session_state.page_active == "Stands":
     st.subheader("⛺ Stands stratégiques")
     if not st.session_state.stands_cibles:
@@ -452,7 +456,7 @@ elif st.session_state.page_active == "Stands":
                 unsafe_allow_html=True,
             )
 
-# --- PAGE ADMIN ---
+# --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     st.subheader("⚙️ Zone d'Administration")
 
@@ -534,6 +538,6 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         else:
             st.info("Aucun volontaire inscrit pour le moment.")
 
-# Footer
+# Pied de page
 st.markdown("---")
 st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
