@@ -307,7 +307,7 @@ if not st.session_state.user_email:
         
         if submit_login:
             if not email_input or "@" not in email_input:
-                st.error("⚠️️ Veuillez entrer une adresse e-mail valide.")
+                st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
             else:
                 st.session_state.user_email = email_input
                 if email_input in [e.lower() for e in ADMIN_EMAILS]:
@@ -318,39 +318,37 @@ if not st.session_state.user_email:
     st.stop()
 
 # ---------------------------------------------------------
-# EN-TÊTE ET PROFIL UTILISATEUR EN HAUT À DROITE
+# EN-TÊTE ET PROFIL UTILISATION (ALIGNÉ COMPLÈTEMENT À DROITE)
 # ---------------------------------------------------------
-col_title, col_user_area = st.columns([1.8, 2.2])
+if st.session_state.is_admin:
+    col_title, col_user_btn, col_gear = st.columns([5, 4, 1])
+    with col_title:
+        st.title("Recrutement UCAC-ICAM")
+    with col_user_btn:
+        if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
+            st.session_state.show_logout_menu = not st.session_state.show_logout_menu
+            st.rerun()
+    with col_gear:
+        if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
+            st.session_state.page_active = "Admin"
+            st.rerun()
+else:
+    col_title, col_user_btn = st.columns([6, 4])
+    with col_title:
+        st.title("Recrutement UCAC-ICAM")
+    with col_user_btn:
+        if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
+            st.session_state.show_logout_menu = not st.session_state.show_logout_menu
+            st.rerun()
 
-with col_title:
-    st.title("Recrutement UCAC-ICAM")
-
-with col_user_area:
-    if st.session_state.is_admin:
-        col_empty, col_user_btn, col_gear = st.columns([0.5, 3, 0.8])
-        with col_user_btn:
-            if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
-                st.session_state.show_logout_menu = not st.session_state.show_logout_menu
-                st.rerun()
-        with col_gear:
-            if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
-                st.session_state.page_active = "Admin"
-                st.rerun()
-    else:
-        col_empty, col_user_btn = st.columns([1.2, 3])
-        with col_user_btn:
-            if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
-                st.session_state.show_logout_menu = not st.session_state.show_logout_menu
-                st.rerun()
-
-    if st.session_state.show_logout_menu:
-        col_sub_empty, col_logout_sub = st.columns([1.5, 2.5])
-        with col_logout_sub:
-            if st.button("🚪 Déconnexion", key="btn_confirm_logout"):
-                st.session_state.user_email = None
-                st.session_state.is_admin = False
-                st.session_state.show_logout_menu = False
-                st.rerun()
+if st.session_state.show_logout_menu:
+    col_empty, col_logout_sub = st.columns([6, 4])
+    with col_logout_sub:
+        if st.button("🚪 Déconnexion", key="btn_confirm_logout"):
+            st.session_state.user_email = None
+            st.session_state.is_admin = False
+            st.session_state.show_logout_menu = False
+            st.rerun()
 
 # ---------------------------------------------------------
 # NAVIGATION PRINCIPALE (4 BOUTONS)
@@ -580,4 +578,6 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         ns = st.text_input("Nouveau stand :")
         if st.button("Ajouter stand"):
             if ns:
-                st.session_stat
+                st.session_state.stands_cibles.append(ns)
+                sauvegarder_csv_liste(
+                    FICHIER_STAND
