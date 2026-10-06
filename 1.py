@@ -17,8 +17,9 @@ ADMIN_EMAILS = [
     "admin@ucac-icam.com",
 ]
 
-JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
-
+# Recrutement du lundi au vendredi uniquement
+JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
+HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(8, 18)]
 
 # ---------------------------------------------------------
 # Persistance des données (CSV)
@@ -32,12 +33,10 @@ def charger_csv_liste(fichier):
     except Exception:
         return []
 
-
 def sauvegarder_csv_liste(fichier, liste_items):
     with open(fichier, "w", encoding="utf-8") as f:
         for item in liste_items:
             f.write(f"{item}\n")
-
 
 def charger_candidats():
     if not os.path.exists(FICHIER_CANDIDATS):
@@ -56,7 +55,6 @@ def charger_candidats():
     except Exception:
         return []
 
-
 def sauvegarder_candidats(candidats):
     with open(FICHIER_CANDIDATS, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
@@ -64,7 +62,6 @@ def sauvegarder_candidats(candidats):
         )
         writer.writeheader()
         writer.writerows(candidats)
-
 
 def charger_planning():
     if not os.path.exists(FICHIER_PLANNING):
@@ -76,15 +73,13 @@ def charger_planning():
     except Exception:
         return []
 
-
 def sauvegarder_planning(planning):
     with open(FICHIER_PLANNING, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
-            f, fieldnames=["jour", "heure", "type_mission", "lieu", "groupe"]
+            f, fieldnames=["jour", "heure_debut", "heure_fin", "type_mission", "lieu", "quartier", "arrondissement", "groupe"]
         )
         writer.writeheader()
         writer.writerows(planning)
-
 
 # ---------------------------------------------------------
 # Configuration & Style CSS
@@ -107,6 +102,24 @@ st.markdown(
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
+    /* Boutons de navigation agrandis */
+    div.stButton > button {
+        width: 100%;
+        min-height: 55px;
+        font-size: 16px !important;
+        font-weight: bold !important;
+        border-radius: 12px !important;
+        background-color: #1C2026 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #2D323B !important;
+        margin-bottom: 8px;
+    }
+    div.stButton > button:hover {
+        background-color: #1B72E8 !important;
+        color: white !important;
+        border-color: #1B72E8 !important;
+    }
+
     .banner-bronze {
         background-color: #4A2B0F;
         border-radius: 14px;
@@ -173,7 +186,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Initialisation des états
+# Initialisation de la session
+if "user_email" not in st.session_state:
+    st.session_state.user_email = None
+
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
 if "candidats" not in st.session_state:
     st.session_state.candidats = charger_candidats()
 
@@ -186,60 +205,94 @@ if "stands_cibles" not in st.session_state:
 if "planning" not in st.session_state:
     st.session_state.planning = charger_planning()
 
-if "admin_connecte" not in st.session_state:
-    st.session_state.admin_connecte = False
-
-if "admin_email" not in st.session_state:
-    st.session_state.admin_email = ""
-
 if "page_active" not in st.session_state:
     st.session_state.page_active = "Accueil"
 
 
 # ---------------------------------------------------------
-# En-tête supérieur (Titre modifié)
+# ÉCRAN DE CONNEXION OBLIGATOIRE À L'ENTRÉE
 # ---------------------------------------------------------
-col_title, col_icon = st.columns([4, 1])
+if not st.session_state.user_email:
+    st.title("Recrutement UCAC-ICAM")
+    st.subheader("🔑 Connexion")
+    st.write("Veuillez saisir votre adresse e-mail pour accéder à la plateforme :")
+    
+    with st.form("login_form"):
+        email_input = st.text_input("Adresse e-mail :").strip().lower()
+        submit_login = st.form_submit_button("Se connecter")
+        
+        if submit_login:
+            if not email_input or "@" not in email_input:
+                st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
+            else:
+                st.session_state.user_email = email_input
+                if email_input in [e.lower() for e in ADMIN_EMAILS]:
+                    st.session_state.is_admin = True
+                    st.success("Bienvenue Administrateur !")
+                else:
+                    st.session_state.is_admin = False
+                    st.success("Bienvenue !")
+                st.rerun()
+    st.stop()
+
+
+# ---------------------------------------------------------
+# EN-TÊTE PRINCIPAL (Titre unique sans logo)
+# ---------------------------------------------------------
+col_title, col_logout = st.columns([5, 1])
 with col_title:
     st.title("Recrutement UCAC-ICAM")
-with col_icon:
-    st.markdown("### 🎓 UCAC")
+with col_logout:
+    st.write(f"👤 `{st.session_state.user_email}`")
+    if st.button("Déconnexion"):
+        st.session_state.user_email = None
+        st.session_state.is_admin = False
+        st.rerun()
+
 
 # ---------------------------------------------------------
-# Boutons d'accès rapide (Boutons publics uniquement)
+# BOUTONS DE NAVIGATION AGRANDIS
 # ---------------------------------------------------------
-btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+if st.session_state.is_admin:
+    nav_cols = st.columns(5)
+else:
+    nav_cols = st.columns(4)
 
-with btn_col1:
-    if st.button("📝\nS'inscrire"):
+with nav_cols[0]:
+    if st.button("📝 S'inscrire"):
         st.session_state.page_active = "Inscription"
         st.rerun()
 
-with btn_col2:
-    if st.button("📅\nPlanning"):
+with nav_cols[1]:
+    if st.button("📅 Planning"):
         st.session_state.page_active = "Accueil"
         st.rerun()
 
-with btn_col3:
-    if st.button("🏫\nÉcoles"):
+with nav_cols[2]:
+    if st.button("🏫 Écoles"):
         st.session_state.page_active = "Ecoles"
         st.rerun()
 
-with btn_col4:
-    if st.button("⛺\nStands"):
+with nav_cols[3]:
+    if st.button("⛺ Stands"):
         st.session_state.page_active = "Stands"
         st.rerun()
+
+if st.session_state.is_admin:
+    with nav_cols[4]:
+        if st.button("⚙️ Admin"):
+            st.session_state.page_active = "Admin"
+            st.rerun()
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# AFFICHAGE DE LA PAGE SÉLECTIONNÉE
+# CONTENU DE LA PAGE SÉLECTIONNÉE
 # ---------------------------------------------------------
 
 # --- PAGE ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
 
-    # Banner 1 : Style Bronze ("Commencer")
     st.markdown(
         """
         <div class="banner-bronze">
@@ -250,7 +303,6 @@ if st.session_state.page_active == "Accueil":
         unsafe_allow_html=True,
     )
 
-    # Banner 2 : Style Bleu Royal ("2027")
     st.markdown(
         """
         <div class="banner-blue">
@@ -262,7 +314,6 @@ if st.session_state.page_active == "Accueil":
         unsafe_allow_html=True,
     )
 
-    # Agenda chronologique jour par jour
     df_plan = pd.DataFrame(st.session_state.planning)
 
     labels_jours = {
@@ -271,7 +322,6 @@ if st.session_state.page_active == "Accueil":
         "Mercredi": "Mercredi · Phase 2",
         "Jeudi": "Jeudi · Phase 2",
         "Vendredi": "Vendredi · Phase 3",
-        "Samedi": "Samedi · Clôture",
     }
 
     for j in JOURS_SEMAINE:
@@ -292,12 +342,17 @@ if st.session_state.page_active == "Accueil":
             )
         else:
             for _, row in items_j.iterrows():
-                icon = "🏫" if row["type_mission"] == "École" else "⛺"
+                icon = "🏫" if row.get("type_mission") == "École" else "⛺"
+                h_deb = row.get("heure_debut", row.get("heure", ""))
+                h_fin = row.get("heure_fin", "")
+                horaire = f"{h_deb} - {h_fin}" if h_fin else h_deb
+                quartier_info = f" | 📍 {row.get('quartier', '')} ({row.get('arrondissement', '')})" if row.get('quartier') else ""
+
                 st.markdown(
                     f"""
                     <div class="event-card">
                         <div style="font-weight:bold; font-size:16px;">{icon} {row['lieu']}</div>
-                        <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {row['heure']} | 👥 {row['groupe']}</div>
+                        <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info} | 👥 {row['groupe']}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -362,93 +417,88 @@ elif st.session_state.page_active == "Stands":
                 unsafe_allow_html=True,
             )
 
-# --- PAGE ADMIN (SÉCURISÉE & CACHÉE) ---
-elif st.session_state.page_active == "Admin":
-    st.subheader("🔒 Zone d'Administration")
+# --- PAGE ADMIN (SÉCURISÉE & DÉVERROUILLÉE AUTOMATIQUEMENT) ---
+elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
+    st.subheader("⚙️ Zone d'Administration")
 
-    if st.session_state.admin_connecte:
-        st.success(f"Connecté : {st.session_state.admin_email}")
-        if st.button("Se déconnecter"):
-            st.session_state.admin_connecte = False
-            st.session_state.page_active = "Accueil"
-            st.rerun()
+    tab1, tab2, tab3 = st.tabs(
+        ["📅 Planifier Créneau", "🏫/⛺ Écoles & Stands", "👥 Volontaires"]
+    )
 
-        tab1, tab2, tab3 = st.tabs(
-            ["📅 Planifier Créneau", "🏫/⛺ Écoles & Stands", "👥 Volontaires"]
-        )
+    with tab1:
+        with st.form("form_p"):
+            p_jour = st.selectbox("Jour :", JOURS_SEMAINE)
+            
+            c_h1, c_h2 = st.columns(2)
+            with c_h1:
+                p_h_debut = st.selectbox("Heure de début :", HEURES_DISPONIBLES, index=0)
+            with c_h2:
+                p_h_fin = st.selectbox("Heure de fin :", HEURES_DISPONIBLES, index=4)
 
-        with tab1:
-            with st.form("form_p"):
-                p_jour = st.selectbox("Jour :", JOURS_SEMAINE)
-                p_heure = st.text_input("Heure (ex: 08h00 - 11h00) :")
-                p_type = st.selectbox("Type :", ["École", "Stand"])
-                lieux = (
-                    st.session_state.ecoles_cibles
-                    if p_type == "École"
-                    else st.session_state.stands_cibles
-                )
-                p_lieu = st.selectbox(
-                    "Lieu :", lieux if lieux else ["Aucun lieu"]
-                )
-                noms = [c["nom"] for c in st.session_state.candidats]
-                p_groupe = st.multiselect("Volontaires :", noms)
+            p_type = st.selectbox("Type :", ["École", "Stand"])
+            lieux = (
+                st.session_state.ecoles_cibles
+                if p_type == "École"
+                else st.session_state.stands_cibles
+            )
+            p_lieu = st.selectbox(
+                "Lieu :", lieux if lieux else ["Aucun lieu"]
+            )
+            
+            c_q, c_a = st.columns(2)
+            with c_q:
+                p_quartier = st.text_input("Quartier :")
+            with c_a:
+                p_arrondissement = st.text_input("Arrondissement :")
 
-                if st.form_submit_button("Ajouter au planning"):
-                    if p_heure and p_lieu and p_groupe:
-                        st.session_state.planning.append(
-                            {
-                                "jour": p_jour,
-                                "heure": p_heure,
-                                "type_mission": p_type,
-                                "lieu": p_lieu,
-                                "groupe": ", ".join(p_groupe),
-                            }
-                        )
-                        sauvegarder_planning(st.session_state.planning)
-                        st.success("Créneau ajouté !")
-                        st.rerun()
+            noms = [c["nom"] for c in st.session_state.candidats]
+            p_groupe = st.multiselect("Volontaires affectés :", noms)
 
-        with tab2:
-            ne = st.text_input("Nouvelle école :")
-            if st.button("Ajouter école"):
-                if ne:
-                    st.session_state.ecoles_cibles.append(ne)
-                    sauvegarder_csv_liste(
-                        FICHIER_ECOLES, st.session_state.ecoles_cibles
+            if st.form_submit_button("Ajouter au planning"):
+                if p_lieu and p_groupe:
+                    st.session_state.planning.append(
+                        {
+                            "jour": p_jour,
+                            "heure_debut": p_h_debut,
+                            "heure_fin": p_h_fin,
+                            "type_mission": p_type,
+                            "lieu": p_lieu,
+                            "quartier": p_quartier,
+                            "arrondissement": p_arrondissement,
+                            "groupe": ", ".join(p_groupe),
+                        }
                     )
+                    sauvegarder_planning(st.session_state.planning)
+                    st.success("Créneau ajouté au planning !")
                     st.rerun()
+                else:
+                    st.error("⚠️ Veillez choisir un lieu et attribuer au moins un volontaire.")
 
-            ns = st.text_input("Nouveau stand :")
-            if st.button("Ajouter stand"):
-                if ns:
-                    st.session_state.stands_cibles.append(ns)
-                    sauvegarder_csv_liste(
-                        FICHIER_STANDS, st.session_state.stands_cibles
-                    )
-                    st.rerun()
-
-        with tab3:
-            if st.session_state.candidats:
-                st.dataframe(pd.DataFrame(st.session_state.candidats))
-
-    else:
-        email = st.text_input("Adresse e-mail autorisée :").strip().lower()
-        if st.button("Se connecter"):
-            if email in [e.lower() for e in ADMIN_EMAILS]:
-                st.session_state.admin_connecte = True
-                st.session_state.admin_email = email
+    with tab2:
+        ne = st.text_input("Nouvelle école :")
+        if st.button("Ajouter école"):
+            if ne:
+                st.session_state.ecoles_cibles.append(ne)
+                sauvegarder_csv_liste(
+                    FICHIER_ECOLES, st.session_state.ecoles_cibles
+                )
                 st.rerun()
-            else:
-                st.error("❌ Adresse e-mail non autorisée.")
 
-# ---------------------------------------------------------
-# ACCÈS DISCRET ADMINISTRATEUR EN PIED DE PAGE
-# ---------------------------------------------------------
+        ns = st.text_input("Nouveau stand :")
+        if st.button("Ajouter stand"):
+            if ns:
+                st.session_state.stands_cibles.append(ns)
+                sauvegarder_csv_liste(
+                    FICHIER_STANDS, st.session_state.stands_cibles
+                )
+                st.rerun()
+
+    with tab3:
+        if st.session_state.candidats:
+            st.dataframe(pd.DataFrame(st.session_state.candidats))
+        else:
+            st.info("Aucun volontaire inscrit pour le moment.")
+
+# Footer
 st.markdown("---")
-footer_col1, footer_col2 = st.columns([8, 1])
-with footer_col1:
-    st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
-with footer_col2:
-    if st.button("⚙️️", help="Espace réservé"):
-        st.session_state.page_active = "Admin"
-        st.rerun()
+st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
