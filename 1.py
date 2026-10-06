@@ -140,7 +140,7 @@ st.markdown(
         width: 100% !important;
         height: 65px !important;
         min-height: 65px !important;
-        font-size: 16px !important;
+        font-size: 15px !important;
         font-weight: 700 !important;
         border-radius: 12px !important;
         background-color: rgba(28, 32, 38, 0.85) !important;
@@ -160,20 +160,17 @@ st.markdown(
         transform: translateY(-2px);
     }}
 
-    /* Rectangle du profil utilisateur réduit et remonté */
+    /* Rectangle du nom d'utilisateur en haut à droite */
     .user-profile-box {{
-        text-align: right;
         background-color: rgba(28, 32, 38, 0.85);
-        padding: 4px 10px;
+        padding: 5px 12px;
         border-radius: 8px;
         border: 1px solid #3A3F4D;
         font-size: 12px;
         color: #D0D5E0;
-        margin-top: -15px;
-        margin-bottom: 6px;
         backdrop-filter: blur(8px);
         display: inline-block;
-        float: right;
+        margin-bottom: 8px;
     }}
 
     .banner-bronze {{
@@ -320,7 +317,7 @@ if not st.session_state.user_email:
         
         if submit_login:
             if not email_input or "@" not in email_input:
-                st.error("⚠️️ Veuillez entrer une adresse e-mail valide.")
+                st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
             else:
                 st.session_state.user_email = email_input
                 if email_input in [e.lower() for e in ADMIN_EMAILS]:
@@ -339,30 +336,35 @@ with col_title:
     st.title("Recrutement UCAC-ICAM")
 
 with col_logout:
+    # 1. Nom de l'utilisateur
     st.markdown(
         f"""
-        <div class="user-profile-box">
-            👤 <b>{st.session_state.user_email}</b>
+        <div style="text-align: right;">
+            <div class="user-profile-box">
+                👤 <b>{st.session_state.user_email}</b>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     
-    col_btn_dec, col_btn_gear = st.columns([3, 1])
-    with col_btn_dec:
+    # 2. Bouton Déconnexion placé EN BAS du nom d'utilisateur
+    col_dec, col_gear = st.columns([3, 1])
+    with col_dec:
         if st.button("🚪 Déconnexion", key="btn_logout"):
             st.session_state.user_email = None
             st.session_state.is_admin = False
             st.rerun()
             
-    with col_btn_gear:
+    with col_gear:
+        # 3. Engrenage d'administration placé en bas à côté de Déconnexion
         if st.session_state.is_admin:
-            if st.button("⚙️", key="btn_admin_gear", help="Panneau d'administration"):
+            if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
                 st.session_state.page_active = "Admin"
                 st.rerun()
 
 # ---------------------------------------------------------
-# NAVIGATION PRINCIPALE (NOUVEAUX LIBELLÉS DE BOUTONS)
+# NAVIGATION PRINCIPALE (4 NOUVEAUX BOUTONS)
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 
@@ -372,7 +374,7 @@ with nav_cols[0]:
         st.rerun()
 
 with nav_cols[1]:
-    if st.button("📅 Planning", key="nav_planning"):
+    if st.button("📅 Planning des descentes", key="nav_planning"):
         st.session_state.page_active = "Accueil"
         st.rerun()
 
@@ -382,7 +384,7 @@ with nav_cols[2]:
         st.rerun()
 
 with nav_cols[3]:
-    if st.button("⛺ Stands", key="nav_stands"):
+    if st.button("⛺ Stands de sensibilisation", key="nav_stands"):
         st.session_state.page_active = "Stands"
         st.rerun()
 
@@ -392,7 +394,7 @@ st.markdown("---")
 # PAGES
 # ---------------------------------------------------------
 
-# --- ACCUEIL / PLANNING ---
+# --- ACCUEIL / PLANNING DES DESCENTES ---
 if st.session_state.page_active == "Accueil":
 
     st.markdown(
@@ -507,9 +509,9 @@ elif st.session_state.page_active == "Ecoles":
                 unsafe_allow_html=True,
             )
 
-# --- STANDS ---
+# --- STANDS DE SENSIBILISATION ---
 elif st.session_state.page_active == "Stands":
-    st.subheader("⛺ Stands stratégiques")
+    st.subheader("⛺ Stands de sensibilisation")
     if not st.session_state.stands_cibles:
         st.info("Aucun stand enregistré.")
     else:
@@ -590,11 +592,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         if st.button("Ajouter stand"):
             if ns:
                 st.session_state.stands_cibles.append(ns)
-                sauvegarder_csv_liste(
-                    FICHIER_STANDS, st.session_state.stands_cibles
-                )
-                st.rerun()
-
-    with tab3:
-        if st.session_state.candidats:
-            st.datafram
+                sauvegarder_cs
