@@ -237,7 +237,7 @@ def jouer_musique_de_fond():
     audio_path = None
     for f in fichiers_audio:
         if os.path.exists(f):
-            audio_path = f;
+            audio_path = f
             break
     if audio_path:
         with open(audio_path, "rb") as f:
@@ -329,7 +329,7 @@ if st.session_state.is_admin:
             st.session_state.show_logout_menu = not st.session_state.show_logout_menu
             st.rerun()
     with col_gear:
-        if st.button("⚙️️", key="btn_admin_gear", help="Zone d'administration"):
+        if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
             st.session_state.page_active = "Admin"
             st.rerun()
 else:
@@ -510,7 +510,7 @@ elif st.session_state.page_active == "Stands":
 
 # --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
-    st.subheader("⚙️️ Zone d'Administration")
+    st.subheader("⚙️ Zone d'Administration")
 
     tab1, tab2, tab3 = st.tabs(
         ["📅 Planifier Créneau", "🏫/⛺ Écoles & Stands", "👥 Volontaires"]
@@ -581,3 +581,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 st.rerun()
 
     with tab3:
+        if
