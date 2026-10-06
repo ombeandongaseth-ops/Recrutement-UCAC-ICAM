@@ -135,7 +135,6 @@ st.markdown(
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     
-    /* Boutons de la barre de navigation principale */
     div.stButton > button {{
         width: 100% !important;
         height: 60px !important;
@@ -237,12 +236,10 @@ def jouer_musique_de_fond():
     audio_path = None
     for f in fichiers_audio:
         if os.path.exists(f):
-            audio_path = f
-            break
+            audio_path = f; break
     if audio_path:
         with open(audio_path, "rb") as f:
-            audio_bytes = f.read()
-            encoded_audio = base64.b64encode(audio_bytes).decode()
+            encoded_audio = base64.b64encode(f.read()).decode()
             mime = "audio/mp3" if audio_path.endswith(".mp3") else "audio/wav"
             st.markdown(
                 f"""
@@ -303,17 +300,12 @@ if not st.session_state.user_email:
     
     with st.form("login_form"):
         email_input = st.text_input("Adresse e-mail :").strip().lower()
-        submit_login = st.form_submit_button("Se connecter")
-        
-        if submit_login:
+        if st.form_submit_button("Se connecter"):
             if not email_input or "@" not in email_input:
                 st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
             else:
                 st.session_state.user_email = email_input
-                if email_input in [e.lower() for e in ADMIN_EMAILS]:
-                    st.session_state.is_admin = True
-                else:
-                    st.session_state.is_admin = False
+                st.session_state.is_admin = email_input in [e.lower() for e in ADMIN_EMAILS]
                 st.rerun()
     st.stop()
 
@@ -526,9 +518,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 if p_type == "École"
                 else st.session_state.stands_cibles
             )
-            p_lieu = st.selectbox(
-                "Lieu :", lieux if lieux else ["Aucun lieu"]
-            )
+            p_lieu = st.selectbox("Lieu :", lieux if lieux else ["Aucun lieu"])
             
             c_q, c_a = st.columns(2)
             with c_q:
@@ -578,4 +568,8 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         if st.session_state.candidats:
             st.dataframe(pd.DataFrame(st.session_state.candidats))
         else:
-            st.info("Aucu
+            st.info("Aucun volontaire inscrit pour le moment.")
+
+# Pied de page
+st.markdown("---")
+st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
