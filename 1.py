@@ -90,7 +90,7 @@ def sauvegarder_planning(planning):
 # Configuration & Style CSS
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Accueil — UCAC-ICAM Recrutement",
+    page_title="Recrutement UCAC-ICAM",
     page_icon="🎓",
     layout="wide",
 )
@@ -197,11 +197,11 @@ if "page_active" not in st.session_state:
 
 
 # ---------------------------------------------------------
-# En-tête supérieur
+# En-tête supérieur (Titre modifié)
 # ---------------------------------------------------------
 col_title, col_icon = st.columns([4, 1])
 with col_title:
-    st.title("Accueil")
+    st.title("Recrutement UCAC-ICAM")
 with col_icon:
     st.markdown("### 🎓 UCAC")
 
@@ -449,6 +449,6 @@ footer_col1, footer_col2 = st.columns([8, 1])
 with footer_col1:
     st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
 with footer_col2:
-    if st.button("⚙️", help="Espace réservé"):
+    if st.button("⚙️️", help="Espace réservé"):
         st.session_state.page_active = "Admin"
         st.rerun()
