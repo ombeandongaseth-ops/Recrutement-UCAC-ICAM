@@ -87,7 +87,7 @@ def sauvegarder_planning(planning):
 
 
 # ---------------------------------------------------------
-# Configuration & CSS personnalisé (Reproduction de l'interface)
+# Configuration & Style CSS
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Accueil — UCAC-ICAM Recrutement",
@@ -98,34 +98,15 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Fond principal très sombre */
     .stApp {
         background-color: #121417;
         color: #FFFFFF;
     }
     
-    /* Masquer le menu Streamlit par défaut pour faire application mobile */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Carte d'action rapide */
-    .quick-action-btn {
-        background-color: #1B72E8;
-        border-radius: 18px;
-        height: 60px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        color: white;
-        margin-bottom: 8px;
-    }
-    .quick-action-orange { background-color: #F06A6A; }
-    .quick-action-blue { background-color: #2D68C4; }
-    .quick-action-indigo { background-color: #3F51B5; }
-    
-    /* Notification Bronze / Marron */
     .banner-bronze {
         background-color: #4A2B0F;
         border-radius: 14px;
@@ -146,14 +127,12 @@ st.markdown(
         color: #D3C2B3;
     }
 
-    /* Bannière Bleue Royale (Style AI Companion) */
     .banner-blue {
         background: linear-gradient(135deg, #1C54CE 0%, #1771EB 100%);
         border-radius: 16px;
         padding: 18px;
         color: white;
         margin-bottom: 25px;
-        position: relative;
     }
     .banner-blue p {
         font-size: 14px;
@@ -170,7 +149,6 @@ st.markdown(
         display: inline-block;
     }
 
-    /* Cartes pour le programme jour par jour */
     .day-header {
         font-size: 18px;
         font-weight: bold;
@@ -228,9 +206,9 @@ with col_icon:
     st.markdown("### 🎓 UCAC")
 
 # ---------------------------------------------------------
-# Boutons d'accès rapide (Ligne d'icônes comme sur la photo)
+# Boutons d'accès rapide (Boutons publics uniquement)
 # ---------------------------------------------------------
-btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns(5)
+btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
 
 with btn_col1:
     if st.button("📝\nS'inscrire"):
@@ -252,36 +230,31 @@ with btn_col4:
         st.session_state.page_active = "Stands"
         st.rerun()
 
-with btn_col5:
-    if st.button("🔒\nAdmin"):
-        st.session_state.page_active = "Admin"
-        st.rerun()
-
 st.markdown("---")
 
 # ---------------------------------------------------------
 # AFFICHAGE DE LA PAGE SÉLECTIONNÉE
 # ---------------------------------------------------------
 
-# --- PAGE ACCUEIL / PLANNING (Style exact de la photo) ---
+# --- PAGE ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
 
-    # Banner 1 : Style Bronze
+    # Banner 1 : Style Bronze ("Commencer")
     st.markdown(
         """
         <div class="banner-bronze">
-            <h4>Connecter la campagne de recrutement</h4>
+            <h4>Commencer la campagne de recrutement</h4>
             <p>Consultez la répartition des équipes pour les descentes dans les lycées et les installations des stands.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Banner 2 : Style Bleu Royal
+    # Banner 2 : Style Bleu Royal ("2027")
     st.markdown(
         """
         <div class="banner-blue">
-            <p><b>Campagne Officielle 2026</b><br>
+            <p><b>Campagne Officielle 2027</b><br>
             Mobilisez-vous pour représenter l'UCAC-ICAM auprès des futurs bacheliers !</p>
             <div class="btn-pill">Volontaires actifs</div>
         </div>
@@ -389,7 +362,7 @@ elif st.session_state.page_active == "Stands":
                 unsafe_allow_html=True,
             )
 
-# --- PAGE ADMIN ---
+# --- PAGE ADMIN (SÉCURISÉE & CACHÉE) ---
 elif st.session_state.page_active == "Admin":
     st.subheader("🔒 Zone d'Administration")
 
@@ -397,6 +370,7 @@ elif st.session_state.page_active == "Admin":
         st.success(f"Connecté : {st.session_state.admin_email}")
         if st.button("Se déconnecter"):
             st.session_state.admin_connecte = False
+            st.session_state.page_active = "Accueil"
             st.rerun()
 
         tab1, tab2, tab3 = st.tabs(
@@ -466,3 +440,15 @@ elif st.session_state.page_active == "Admin":
                 st.rerun()
             else:
                 st.error("❌ Adresse e-mail non autorisée.")
+
+# ---------------------------------------------------------
+# ACCÈS DISCRET ADMINISTRATEUR EN PIED DE PAGE
+# ---------------------------------------------------------
+st.markdown("---")
+footer_col1, footer_col2 = st.columns([8, 1])
+with footer_col1:
+    st.caption("© 2027 UCAC-ICAM — Plateforme de Recrutement")
+with footer_col2:
+    if st.button("⚙️", help="Espace réservé"):
+        st.session_state.page_active = "Admin"
+        st.rerun()
