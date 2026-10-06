@@ -237,7 +237,7 @@ def jouer_musique_de_fond():
     audio_path = None
     for f in fichiers_audio:
         if os.path.exists(f):
-            audio_path = f
+            audio_path = f;
             break
     if audio_path:
         with open(audio_path, "rb") as f:
@@ -318,7 +318,7 @@ if not st.session_state.user_email:
     st.stop()
 
 # ---------------------------------------------------------
-# EN-TÊTE ET PROFIL UTILISATION (ALIGNÉ COMPLÈTEMENT À DROITE)
+# EN-TÊTE ET PROFIL UTILISATION
 # ---------------------------------------------------------
 if st.session_state.is_admin:
     col_title, col_user_btn, col_gear = st.columns([5, 4, 1])
@@ -329,7 +329,7 @@ if st.session_state.is_admin:
             st.session_state.show_logout_menu = not st.session_state.show_logout_menu
             st.rerun()
     with col_gear:
-        if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
+        if st.button("⚙️️", key="btn_admin_gear", help="Zone d'administration"):
             st.session_state.page_active = "Admin"
             st.rerun()
 else:
@@ -510,7 +510,7 @@ elif st.session_state.page_active == "Stands":
 
 # --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
-    st.subheader("⚙️ Zone d'Administration")
+    st.subheader("⚙️️ Zone d'Administration")
 
     tab1, tab2, tab3 = st.tabs(
         ["📅 Planifier Créneau", "🏫/⛺ Écoles & Stands", "👥 Volontaires"]
@@ -563,21 +563,21 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                     st.success("Créneau ajouté au planning !")
                     st.rerun()
                 else:
-                    st.error("⚠ Veillez choisir un lieu et attribuer au moins un volontaire.")
+                    st.error("⚠️ Veuillez choisir un lieu et attribuer au moins un volontaire.")
 
     with tab2:
         ne = st.text_input("Nouvelle école :")
         if st.button("Ajouter école"):
             if ne:
                 st.session_state.ecoles_cibles.append(ne)
-                sauvegarder_csv_liste(
-                    FICHIER_ECOLES, st.session_state.ecoles_cibles
-                )
+                sauvegarder_csv_liste(FICHIER_ECOLES, st.session_state.ecoles_cibles)
                 st.rerun()
 
         ns = st.text_input("Nouveau stand :")
         if st.button("Ajouter stand"):
             if ns:
                 st.session_state.stands_cibles.append(ns)
-                sauvegarder_csv_liste(
-                    FICHIER_STAND
+                sauvegarder_csv_liste(FICHIER_STANDS, st.session_state.stands_cibles)
+                st.rerun()
+
+    with tab3:
