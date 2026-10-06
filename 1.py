@@ -135,18 +135,18 @@ st.markdown(
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     
-    /* Style global des boutons de la barre de navigation */
+    /* Boutons de la barre de navigation */
     div.stButton > button {{
         width: 100% !important;
-        height: 70px !important;
-        min-height: 70px !important;
-        font-size: 19px !important;
+        height: 65px !important;
+        min-height: 65px !important;
+        font-size: 16px !important;
         font-weight: 700 !important;
-        border-radius: 14px !important;
+        border-radius: 12px !important;
         background-color: rgba(28, 32, 38, 0.85) !important;
         color: #FFFFFF !important;
         border: 2px solid #3A3F4D !important;
-        padding: 10px !important;
+        padding: 8px !important;
         backdrop-filter: blur(8px);
         display: flex !important;
         align-items: center !important;
@@ -160,17 +160,20 @@ st.markdown(
         transform: translateY(-2px);
     }}
 
-    /* Profil utilisateur dans le coin supérieur droit */
+    /* Rectangle du profil utilisateur réduit et remonté */
     .user-profile-box {{
         text-align: right;
         background-color: rgba(28, 32, 38, 0.85);
-        padding: 10px 16px;
-        border-radius: 12px;
+        padding: 4px 10px;
+        border-radius: 8px;
         border: 1px solid #3A3F4D;
-        font-size: 14px;
-        color: #A0A5B1;
-        margin-bottom: 8px;
+        font-size: 12px;
+        color: #D0D5E0;
+        margin-top: -15px;
+        margin-bottom: 6px;
         backdrop-filter: blur(8px);
+        display: inline-block;
+        float: right;
     }}
 
     .banner-bronze {{
@@ -243,7 +246,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# MUSIQUE DE FOND (OPTIONNELLE)
+# MUSIQUE DE FOND
 # ---------------------------------------------------------
 def jouer_musique_de_fond():
     fichiers_audio = ["musique.mp3", "background.mp3", "musique.wav"]
@@ -259,7 +262,7 @@ def jouer_musique_de_fond():
             mime = "audio/mp3" if audio_path.endswith(".mp3") else "audio/wav"
             st.markdown(
                 f"""
-                <audio autoplay loop controls style="width: 100%; height: 32px; opacity: 0.7; margin-bottom: 10px;">
+                <audio autoplay loop controls style="width: 100%; height: 30px; opacity: 0.7; margin-bottom: 8px;">
                     <source src="data:{mime};base64,{encoded_audio}" type="{mime}">
                 </audio>
                 """,
@@ -317,7 +320,7 @@ if not st.session_state.user_email:
         
         if submit_login:
             if not email_input or "@" not in email_input:
-                st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
+                st.error("⚠️️ Veuillez entrer une adresse e-mail valide.")
             else:
                 st.session_state.user_email = email_input
                 if email_input in [e.lower() for e in ADMIN_EMAILS]:
@@ -328,7 +331,7 @@ if not st.session_state.user_email:
     st.stop()
 
 # ---------------------------------------------------------
-# EN-TÊTE ET PROFIL UTILISATEUR / BOUTON CACHÉ ENGRENAGE
+# EN-TÊTE ET PROFIL UTILISATEUR
 # ---------------------------------------------------------
 col_title, col_logout = st.columns([2.5, 1.5])
 
@@ -345,7 +348,6 @@ with col_logout:
         unsafe_allow_html=True,
     )
     
-    # Alignement du bouton Déconnexion et de l'icône Engrenage d'administration
     col_btn_dec, col_btn_gear = st.columns([3, 1])
     with col_btn_dec:
         if st.button("🚪 Déconnexion", key="btn_logout"):
@@ -355,18 +357,17 @@ with col_logout:
             
     with col_btn_gear:
         if st.session_state.is_admin:
-            # Engrenage discret réservé uniquement aux administrateurs
             if st.button("⚙️", key="btn_admin_gear", help="Panneau d'administration"):
                 st.session_state.page_active = "Admin"
                 st.rerun()
 
 # ---------------------------------------------------------
-# NAVIGATION PRINCIPALE (4 GRANDS BOUTONS)
+# NAVIGATION PRINCIPALE (NOUVEAUX LIBELLÉS DE BOUTONS)
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 
 with nav_cols[0]:
-    if st.button("📝 S'inscrire", key="nav_inscrire"):
+    if st.button("📝 Inscription au recrutement", key="nav_inscrire"):
         st.session_state.page_active = "Inscription"
         st.rerun()
 
@@ -376,7 +377,7 @@ with nav_cols[1]:
         st.rerun()
 
 with nav_cols[2]:
-    if st.button("🏫 Écoles", key="nav_ecoles"):
+    if st.button("🏫 Écoles de descentes", key="nav_ecoles"):
         st.session_state.page_active = "Ecoles"
         st.rerun()
 
@@ -461,7 +462,7 @@ if st.session_state.page_active == "Accueil":
 
 # --- INSCRIPTION ---
 elif st.session_state.page_active == "Inscription":
-    st.subheader("📝 Inscription d'un Volontaire")
+    st.subheader("📝 Inscription au recrutement")
 
     with st.form("form_candidat", clear_on_submit=True):
         nom = st.text_input("Nom et Prénom complet :").strip().title()
@@ -496,7 +497,7 @@ elif st.session_state.page_active == "Inscription":
 
 # --- ÉCOLES ---
 elif st.session_state.page_active == "Ecoles":
-    st.subheader("🏫 Écoles cibles à visiter")
+    st.subheader("🏫 Écoles de descentes")
     if not st.session_state.ecoles_cibles:
         st.info("Aucune école enregistrée.")
     else:
@@ -592,3 +593,8 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 sauvegarder_csv_liste(
                     FICHIER_STANDS, st.session_state.stands_cibles
                 )
+                st.rerun()
+
+    with tab3:
+        if st.session_state.candidats:
+            st.datafram
