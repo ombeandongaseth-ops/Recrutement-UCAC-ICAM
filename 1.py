@@ -329,24 +329,20 @@ with col_user_area:
     if st.session_state.is_admin:
         col_user_btn, col_gear = st.columns([3, 1])
         with col_user_btn:
-            # Le nom d'utilisateur est désormais un bouton cliquable
             if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
                 st.session_state.show_logout_menu = not st.session_state.show_logout_menu
                 st.rerun()
         with col_gear:
-            # L'engrenage apparaît UNIQUEMENT pour les administrateurs
             if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
                 st.session_state.page_active = "Admin"
                 st.rerun()
     else:
         col_empty, col_user_btn = st.columns([1, 3])
         with col_user_btn:
-            # Le nom d'utilisateur est un bouton cliquable
             if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
                 st.session_state.show_logout_menu = not st.session_state.show_logout_menu
                 st.rerun()
 
-    # Si l'utilisateur clique sur son nom, le bouton de déconnexion apparaît sous son nom
     if st.session_state.show_logout_menu:
         col_sub_empty, col_logout_sub = st.columns([2, 2])
         with col_logout_sub:
@@ -516,7 +512,7 @@ elif st.session_state.page_active == "Stands":
 
 # --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
-    st.subheader("⚙️️ Zone d'Administration")
+    st.subheader("⚙️ Zone d'Administration")
 
     tab1, tab2, tab3 = st.tabs(
         ["📅 Planifier Créneau", "🏫/⛺ Écoles & Stands", "👥 Volontaires"]
@@ -569,7 +565,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                     st.success("Créneau ajouté au planning !")
                     st.rerun()
                 else:
-                    st.error("⚠️ Veillez choisir un lieu et attribuer au moins un volontaire.")
+                    st.error("⚠️️ Veillez choisir un lieu et attribuer au moins un volontaire.")
 
     with tab2:
         ne = st.text_input("Nouvelle école :")
@@ -577,3 +573,11 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             if ne:
                 st.session_state.ecoles_cibles.append(ne)
                 sauvegarder_csv_liste(
+                    FICHIER_ECOLES, st.session_state.ecoles_cibles
+                )
+                st.rerun()
+
+        ns = st.text_input("Nouveau stand :")
+        if st.button("Ajouter stand"):
+            if ns:
+                st.session_state.stands_cibles.append(ns)
