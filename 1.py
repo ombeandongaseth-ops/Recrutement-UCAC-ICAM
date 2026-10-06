@@ -135,7 +135,7 @@ st.markdown(
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     
-    /* Boutons de la barre de navigation */
+    /* Boutons de la barre de navigation principal */
     div.stButton > button {{
         width: 100% !important;
         height: 65px !important;
@@ -160,17 +160,17 @@ st.markdown(
         transform: translateY(-2px);
     }}
 
-    /* Rectangle du nom d'utilisateur en haut à droite */
+    /* Nom d'utilisateur */
     .user-profile-box {{
         background-color: rgba(28, 32, 38, 0.85);
-        padding: 5px 12px;
+        padding: 6px 14px;
         border-radius: 8px;
         border: 1px solid #3A3F4D;
-        font-size: 12px;
+        font-size: 13px;
         color: #D0D5E0;
         backdrop-filter: blur(8px);
         display: inline-block;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }}
 
     .banner-bronze {{
@@ -330,13 +330,13 @@ if not st.session_state.user_email:
 # ---------------------------------------------------------
 # EN-TÊTE ET PROFIL UTILISATEUR
 # ---------------------------------------------------------
-col_title, col_logout = st.columns([2.5, 1.5])
+col_title, col_user_area = st.columns([2.2, 1.8])
 
 with col_title:
     st.title("Recrutement UCAC-ICAM")
 
-with col_logout:
-    # 1. Nom de l'utilisateur
+with col_user_area:
+    # 1. Nom d'utilisateur (tout en haut à droite)
     st.markdown(
         f"""
         <div style="text-align: right;">
@@ -348,23 +348,30 @@ with col_logout:
         unsafe_allow_html=True,
     )
     
-    # 2. Bouton Déconnexion placé EN BAS du nom d'utilisateur
-    col_dec, col_gear = st.columns([3, 1])
-    with col_dec:
-        if st.button("🚪 Déconnexion", key="btn_logout"):
-            st.session_state.user_email = None
-            st.session_state.is_admin = False
-            st.rerun()
-            
-    with col_gear:
-        # 3. Engrenage d'administration placé en bas à côté de Déconnexion
-        if st.session_state.is_admin:
+    # 2. Bouton Déconnexion + Engrenage côte à côte, directement EN BAS du nom d'utilisateur
+    if st.session_state.is_admin:
+        col_dec, col_gear = st.columns([3, 1])
+        with col_dec:
+            if st.button("🚪 Déconnexion", key="btn_logout"):
+                st.session_state.user_email = None
+                st.session_state.is_admin = False
+                st.rerun()
+        with col_gear:
+            # L'engrenage n'apparaît QUE pour les administrateurs
             if st.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
                 st.session_state.page_active = "Admin"
                 st.rerun()
+    else:
+        # Utilisateur normal : bouton Déconnexion occupant la largeur à droite
+        col_empty, col_dec = st.columns([2, 2])
+        with col_dec:
+            if st.button("🚪 Déconnexion", key="btn_logout"):
+                st.session_state.user_email = None
+                st.session_state.is_admin = False
+                st.rerun()
 
 # ---------------------------------------------------------
-# NAVIGATION PRINCIPALE (4 NOUVEAUX BOUTONS)
+# NAVIGATION PRINCIPALE (4 BOUTONS)
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 
@@ -582,14 +589,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         ne = st.text_input("Nouvelle école :")
         if st.button("Ajouter école"):
             if ne:
-                st.session_state.ecoles_cibles.append(ne)
-                sauvegarder_csv_liste(
-                    FICHIER_ECOLES, st.session_state.ecoles_cibles
-                )
-                st.rerun()
-
-        ns = st.text_input("Nouveau stand :")
-        if st.button("Ajouter stand"):
-            if ns:
-                st.session_state.stands_cibles.append(ns)
-                sauvegarder_cs
+                st.ses
