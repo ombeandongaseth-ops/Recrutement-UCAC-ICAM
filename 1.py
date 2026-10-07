@@ -166,83 +166,100 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# STYLES CSS CONFORMES À L'IMAGE (BOUTONS EN PILULES ROUGES)
+# STYLES CSS SUR MESURE (STYLE DE LA CAPTURE)
 # ---------------------------------------------------------
-st.set_page_config(page_title="Institut Ucac-Icam", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="UCAC-ICAM — Recrutement", page_icon="🎓", layout="wide")
 
 st.markdown(
     """
     <style>
-    /* Style général */
     .stApp {
-        background-color: #FFFFFF !important;
+        background-color: #F8F9FA !important;
         color: #212529 !important;
         font-family: 'Segoe UI', Arial, sans-serif !important;
     }
 
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
 
-    /* Bandeau haut rouge comme sur l'image */
-    .ucac-navbar-banner {
-        background-color: #A61C1C;
-        padding: 12px 20px;
-        margin: -60px -60px 25px -60px;
+    /* Bandeau supérieur rouge UCAC-ICAM */
+    .ucac-banner {
+        background-color: #9E1B22;
+        color: #FFFFFF;
+        padding: 16px 24px;
+        border-radius: 6px;
+        margin-bottom: 24px;
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
+    }
+    .ucac-banner h2 {
+        margin: 0;
+        font-weight: 800;
+        color: #FFFFFF;
+        font-size: 24px;
+    }
+    .ucac-banner p {
+        margin: 4px 0 0 0;
+        font-size: 13px;
+        opacity: 0.9;
     }
 
-    /* Style des boutons sous forme de pilules rouges exactement comme l'image */
+    /* Boutons en forme de pilules rouges */
     div.stButton > button {
         width: 100% !important;
         height: 48px !important;
         font-size: 14px !important;
         font-weight: 600 !important;
-        border-radius: 25px !important; /* Bords arrondis style pilule */
-        background-color: #A61C1C !important; /* Rouge foncé identique à l'image */
-        color: #FFFFFF !important; /* Texte blanc */
-        border: none !important;
-        box-shadow: 0px 2px 5px rgba(0,0,0,0.2) !important;
+        border-radius: 8px !important;
+        background-color: #9E1B22 !important;
+        color: #FFFFFF !important;
+        border: None !important;
+        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1) !important;
         transition: all 0.2s ease-in-out !important;
     }
     div.stButton > button:hover {
-        background-color: #801414 !important;
-        box-shadow: 0px 4px 8px rgba(0,0,0,0.3) !important;
-        transform: translateY(-1px);
-    }
-
-    /* Style des formulaires et cartes */
-    div.stFormSubmitButton > button {
-        background-color: #A61C1C !important;
+        background-color: #7A1318 !important;
         color: #FFFFFF !important;
-        border-radius: 25px !important;
     }
 
+    /* Style spécifique pour les boutons du menu profil/déconnexion */
+    div.stFormSubmitButton > button {
+        background-color: #9E1B22 !important;
+        color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }
+
+    /* Cartes d'événements et conteneurs */
     .event-card {
-        background-color: #F9F9F9;
+        background-color: #FFFFFF;
         color: #212529;
         border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 12px;
-        border-left: 5px solid #A61C1C;
-        border-top: 1px solid #EEEEEE;
-        border-right: 1px solid #EEEEEE;
-        border-bottom: 1px solid #EEEEEE;
+        border-left: 5px solid #9E1B22;
+        border-top: 1px solid #E9ECEF;
+        border-right: 1px solid #E9ECEF;
+        border-bottom: 1px solid #E9ECEF;
+        box-shadow: 0px 2px 4px rgba(0,0,0,0.03);
     }
 
-    .compact-profile-box {
+    .profile-info-card {
         background-color: #FFFFFF;
-        color: #212529;
+        border: 1px solid #E9ECEF;
         border-radius: 8px;
-        padding: 12px 16px;
-        box-shadow: 0px 4px 12px rgba(0,0,0,0.15);
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .profile-info-line {
+        padding: 8px 0;
+        border-bottom: 1px solid #F1F3F5;
         font-size: 13px;
-        border: 1px solid #DDD;
     }
 
     .online-badge {
         display: inline-block;
-        background-color: #2E7D32;
+        background-color: #10B981;
         color: white;
         padding: 3px 8px;
         border-radius: 12px;
@@ -282,13 +299,26 @@ if "tirage_temp_l1" not in st.session_state:
 # CONNEXION INITIALE
 # ---------------------------------------------------------
 if not st.session_state.user_email:
-    st.markdown("### 🎓 Portail Officiel de Recrutement UCAC-ICAM")
+    st.markdown(
+        """
+        <div class="ucac-banner">
+            <div>
+                <h2>UCAC-ICAM</h2>
+                <p>Plateforme de Recrutement & Campagne</p>
+            </div>
+            <div>
+                <b>PORTAIL APPRENANTS & ADMINISTRATION</b>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     
     c_m1, col_box, c_m2 = st.columns([1, 2, 1])
     with col_box:
         with st.form("login_form"):
-            st.markdown("#### 🔑 Connexion Volontaire / Administration")
-            email_input = st.text_input("Adresse e-mail institutionnelle :", placeholder="exemple@ucac-icam.com").strip().lower()
+            st.markdown("#### 🔑 Connexion")
+            email_input = st.text_input("Adresse e-mail :", placeholder="exemple@ucac-icam.com").strip().lower()
             if st.form_submit_button("Se connecter"):
                 if not email_input or "@" not in email_input:
                     st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
@@ -303,70 +333,95 @@ if not st.session_state.user_email:
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# EN-TÊTE PRINCIPAL & PROFIL
+# BANDEAU D'EN-TÊTE ET ESPACE UTILISATEUR
 # ---------------------------------------------------------
+st.markdown(
+    """
+    <div class="ucac-banner">
+        <div>
+            <h2>UCAC-ICAM</h2>
+            <p>Plateforme de Recrutement & Campagne</p>
+        </div>
+        <div style="font-size: 12px; font-weight: bold; text-align: right;">
+            PORTAIL APPRENANTS & ADMINISTRATION
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
 
-col_prof, col_space = st.columns([3, 7])
-with col_prof:
-    if st.button(f"👤 {user_prefix} ▾", key="top_profile_btn"):
+col_head_left, col_head_right = st.columns([7, 3])
+with col_head_left:
+    st.markdown(f"### 📍 Espace Recrutement — `{st.session_state.user_email}`")
+
+with col_head_right:
+    c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_head_right, None)
+    if c_btn_prof.button(f"👤 {user_prefix} ▾", key="top_profile_btn"):
         st.session_state.show_profile_menu = not st.session_state.show_profile_menu
         st.rerun()
-
-if st.session_state.show_profile_menu:
-    col_pop, col_blank = st.columns([3, 7])
-    with col_pop:
-        st.markdown(
-            f"""
-            <div class="compact-profile-box">
-                <div style="padding: 4px 0; border-bottom: 1px solid #EEE;">👤 <b>{user_prefix}</b></div>
-                <div style="padding: 4px 0; border-bottom: 1px solid #EEE; color: #555;">📧 {st.session_state.user_email}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("🔴 Déconnexion", key="btn_logout"):
-            st.session_state.user_email = None
-            st.session_state.is_admin = False
-            st.session_state.show_profile_menu = False
+        
+    if st.session_state.is_admin and c_btn_gear:
+        if c_btn_gear.button("⚙️", key="btn_admin_gear", help="Administration"):
+            st.session_state.page_active = "Admin"
             st.rerun()
+
+# DÉROULANT DES INFORMATIONS DU PROFIL DU COMPTE
+if st.session_state.show_profile_menu:
+    st.markdown(
+        f"""
+        <div class="profile-info-card">
+            <div class="profile-info-line">👤 <b>Utilisateur :</b> {user_prefix}</div>
+            <div class="profile-info-line">📧 <b>E-mail :</b> {st.session_state.user_email}</div>
+            <div class="profile-info-line">🎓 <b>Statut :</b> Volontaire / Apprenant</div>
+            <div class="profile-info-line">🌐 <b>Langue :</b> Français</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("🔴 Déconnexion", key="btn_logout"):
+        st.session_state.user_email = None
+        st.session_state.is_admin = False
+        st.session_state.show_profile_menu = False
+        st.rerun()
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# BOUTONS DU MENU SUPÉRIEUR (EXACTEMENT COMME DANS L'IMAGE)
+# BOUTONS DE NAVIGATION DU BAS (ROUGES PILULES D'ORIGINE)
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 
 with nav_cols[0]:
-    if st.button("📅 PLANNING DES DESCENTES", key="nav_planning"):
-        st.session_state.page_active = "Accueil"
-        st.rerun()
-
-with nav_cols[1]:
-    if st.button("📝 INSCRIPTION / MON PROFIL", key="nav_inscrire"):
+    if st.button("📝 Inscription / Profil", key="nav_inscrire"):
         st.session_state.page_active = "Inscription"
         st.rerun()
 
+with nav_cols[1]:
+    if st.button("📅 Planning des descentes", key="nav_planning"):
+        st.session_state.page_active = "Accueil"
+        st.rerun()
+
 with nav_cols[2]:
-    if st.button("🏫 ÉCOLES CIBLES", key="nav_ecoles"):
+    if st.button("🏫 Écoles de descentes", key="nav_ecoles"):
         st.session_state.page_active = "Ecoles"
         st.rerun()
 
 with nav_cols[3]:
-    if st.button("⛺ STANDS DE SENSIBILISATION", key="nav_stands"):
+    if st.button("⛺ Stands de sensibilisation", key="nav_stands"):
         st.session_state.page_active = "Stands"
         st.rerun()
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# CONTENU DE LA PAGE ACTIVE
+# ACCÈS AUX PAGES DE L'APPLICATION
 # ---------------------------------------------------------
 
 # --- ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
-    st.subheader("📅 Planning Officiel des Descentes de Recrutement")
+    st.subheader("📅 Planning Officiel des Descentes")
 
     df_plan = pd.DataFrame(st.session_state.planning)
     if df_plan.empty:
@@ -376,7 +431,7 @@ if st.session_state.page_active == "Accueil":
         dates_uniques = df_plan[col_date].unique()
         for d in dates_uniques:
             st.markdown(
-                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#A61C1C;">📅 {d}</div>',
+                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#9E1B22;">📅 {d}</div>',
                 unsafe_allow_html=True,
             )
             items_d = df_plan[df_plan[col_date] == d]
@@ -394,7 +449,7 @@ if st.session_state.page_active == "Accueil":
                 st.markdown(
                     f"""
                     <div class="event-card">
-                        <div style="font-weight:bold; font-size:16px; color:#A61C1C;">{icon} {row.get('lieu', '')}</div>
+                        <div style="font-weight:bold; font-size:16px; color:#9E1B22;">{icon} {row.get('lieu', '')}</div>
                         <div style="color:#666666; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
                         <div style="color:#333333; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
                     </div>
@@ -404,7 +459,7 @@ if st.session_state.page_active == "Accueil":
 
 # --- INSCRIPTION & RETRAIT ---
 elif st.session_state.page_active == "Inscription":
-    st.subheader("📝 Inscription & Participation")
+    st.subheader("📝 Inscription & Gestion de ma participation")
     tab_inscr, tab_desist = st.tabs(["Formulaire d'inscription", "🏥 Demande de Retrait / Feu Vert"])
 
     with tab_inscr:
@@ -715,11 +770,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
 
 # Pied de page
 st.markdown("---")
-st.markdown(
-    """
-    <div style="text-align: center; color: #777777; font-size: 12px;">
-        © UCAC-ICAM — Recrutement
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.caption("© UCAC-ICAM — Plateforme de Recrutement")
