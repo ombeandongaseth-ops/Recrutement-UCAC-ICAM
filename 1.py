@@ -41,7 +41,7 @@ def charger_csv_liste(fichier):
     try:
         with open(fichier, "r", encoding="utf-8") as f:
             items = [line.strip() for line in f.read().splitlines() if line.strip()]
-            return sorted(items, key=lambda x: x.lower())  # Tri alphabétique
+            return sorted(items, key=lambda x: x.lower())
     except Exception:
         return []
 
@@ -66,7 +66,6 @@ def charger_candidats():
                 if "jours_dispo" not in row:
                     row["jours_dispo"] = "Tous les jours"
                 candidats.append(row)
-            # Tri alphabétique par nom
             return sorted(candidats, key=lambda x: x.get("nom", "").lower())
     except Exception:
         return []
@@ -88,7 +87,6 @@ def charger_planning():
             reader = csv.DictReader(f)
             planning = []
             for row in reader:
-                # Rétrocompatibilité avec l'ancien champ "jour"
                 if "date_mission" not in row or not row["date_mission"]:
                     row["date_mission"] = row.get("jour", "Date non précisée")
                 planning.append(row)
@@ -336,7 +334,7 @@ elif st.session_state.page_active == "Inscription":
 
 # --- ECOLES ---
 elif st.session_state.page_active == "Ecoles":
-    st.subheader("🏫 Écoles de descentes (Triées par ordre alphabétique)")
+    st.subheader("🏫 Écoles de descentes (Triées par ordre alphabétique)")
     if not st.session_state.ecoles_cibles:
         st.info("Aucune école enregistrée.")
     else:
@@ -345,7 +343,7 @@ elif st.session_state.page_active == "Ecoles":
 
 # --- STANDS ---
 elif st.session_state.page_active == "Stands":
-    st.subheader("⛺ Stands de sensibilisation (Triés par ordre alphabétique)")
+    st.subheader("⛺ Stands de sensibilisation (Triés par ordre alphabétique)")
     if not st.session_state.stands_cibles:
         st.info("Aucun stand enregistré.")
     else:
@@ -378,7 +376,6 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             with c_q: p_quartier = st.text_input("Quartier :")
             with c_a: p_arrondissement = st.text_input("Arrondissement :")
 
-            # Volontaires triés alphabétiquement
             candidats_sorted = sorted(st.session_state.candidats, key=lambda x: x.get("nom", "").lower())
             noms = [f"{c['nom']} ({c.get('statut_filiere', 'L1')})" for c in candidats_sorted]
             p_groupe = st.multiselect("Volontaires affectés (MAXIMUM 5) :", noms, max_selections=5)
@@ -418,7 +415,11 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 st.success("Créneau supprimé du planning.")
                 st.rerun()
 
-    # 2. VOLONTAIRES ET SUPPRESSION (Trier par ordre alphabétique)
+    # 2. VOLONTAIRES ET SUPPRESSION
     with tab2:
         st.markdown("### Liste des Volontaires (Ordre Alphabétique)")
-        st.session_state.candidats = sorted(st.session_state.candidats,
+        st.session_state.candidats = sorted(st.session_state.candidats, key=lambda x: x.get("nom", "").lower())
+        
+        if st.session_state.candidats:
+            df_cand = pd.DataFrame(st.session_state.candidats)
+            st.dataframe(df_cand, use_container_width=T
