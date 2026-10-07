@@ -2,6 +2,8 @@ import base64
 import csv
 import datetime
 import os
+import random
+import time
 import pandas as pd
 import streamlit as st
 
@@ -13,6 +15,7 @@ FICHIER_ECOLES = "ecoles_recrutement.csv"
 FICHIER_STANDS = "stands_recrutement.csv"
 FICHIER_PLANNING = "planning_recrutement.csv"
 FICHIER_DEMANDES_DESISTEMENT = "demandes_desistement.csv"
+FICHIER_PRESENCE = "presence_temps_reel.csv"
 
 ADMIN_EMAILS = [
     "ninon.ombeandonga@2030.ucac-icam.com",
@@ -21,22 +24,21 @@ ADMIN_EMAILS = [
     "admin@ucac-icam.com",
 ]
 
-STATUTS_POSSIBLES = [
-    "BP",
+STATUTS_AUTO = ["BP", "CP (Cycle Préparatoire)", "L1"]
+STATUTS_MANUELS = [
     "B1",
-    "L1",
     "L2",
     "L3",
-    "CP (Cycle Préparatoire)",
     "Membre de l'administration",
     "Enseignant / Professeur",
 ]
+STATUTS_POSSIBLES = STATUTS_AUTO + STATUTS_MANUELS
 
 JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(7, 19)]
 
 # ---------------------------------------------------------
-# FONCTIONS DE PERSISTANCE CSV
+# FONCTIONS DE PERSISTANCE CSV & PRÉSENCE
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
     if not os.path.exists(fichier):
@@ -122,6 +124,45 @@ def sauvegarder_desistements(desistements):
         writer.writeheader()
         writer.writerows(desistements_tries)
 
+def mettre_a_jour_presence(email):
+    """Enregistre l'activité récente de l'utilisateur pour le suivi en temps réel."""
+    maintenant = time.time()
+    presences = {}
+    if os.path.exists(FICHIER_PRESENCE):
+        try:
+            with open(FICHIER_PRESENCE, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    presences[row["email"]] = float(row["last_ping"])
+        except Exception:
+            pass
+    presences[email] = maintenant
+
+    # Nettoyage des sessions inactives (> 5 minutes)
+    presences = {e: t for e, t in presences.items() if maintenant - t < 300}
+
+    with open(FICHIER_PRESENCE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["email", "last_ping"])
+        writer.writeheader()
+        for e, t in presences.items():
+            writer.writerow({"email": e, "last_ping": t})
+
+def obtenir_utilisateurs_en_ligne():
+    """Renvoie la liste des utilisateurs actifs ces 5 dernières minutes."""
+    if not os.path.exists(FICHIER_PRESENCE):
+        return []
+    maintenant = time.time()
+    en_ligne = []
+    try:
+        with open(FICHIER_PRESENCE, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if maintenant - float(row["last_ping"]) < 300:
+                    en_ligne.append(row["email"])
+    except Exception:
+        pass
+    return sorted(en_ligne)
+
 # ---------------------------------------------------------
 # BACKGROUND & STYLE
 # ---------------------------------------------------------
@@ -176,6 +217,10 @@ st.markdown(
         background-color: rgba(28, 32, 38, 0.85); border-radius: 12px; padding: 14px 18px;
         margin-bottom: 12px; border-left: 4px solid #1B72E8; backdrop-filter: blur(5px);
     }}
+    .online-badge {{
+        display: inline-block; background-color: #10B981; color: white;
+        padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -202,6 +247,8 @@ if "desistements" not in st.session_state:
     st.session_state.desistements = charger_desistements()
 if "page_active" not in st.session_state:
     st.session_state.page_active = "Accueil"
+if "tirage_temp_l1" not in st.session_state:
+    st.session_state.tirage_temp_l1 = []
 
 # ---------------------------------------------------------
 # CONNEXION INITIALE
@@ -225,8 +272,12 @@ if not st.session_state.user_email:
             else:
                 st.session_state.user_email = email_input
                 st.session_state.is_admin = email_input in [e.lower() for e in ADMIN_EMAILS]
+                mettre_a_jour_presence(email_input)
                 st.rerun()
     st.stop()
+
+# Mettre à jour le statut de présence en temps réel
+mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
 # EN-TÊTE ET NAVIGATION
@@ -279,7 +330,7 @@ st.markdown("---")
 # --- ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
     st.markdown(
-        '<div class="banner-bronze"><h4>Planning Officiel des Descentes</h4><p>Retrouvez ici les équipes constituées (5 personnes max) classées par date.</p></div>',
+        '<div class="banner-bronze"><h4>Planning Officiel des Descentes</h4><p>Retrouvez ici les équipes constituées (3 Étudiants L1/CP/BP + 2 Encadrants/Aînés) classées par date.</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -311,7 +362,7 @@ if st.session_state.page_active == "Accueil":
                     <div class="event-card">
                         <div style="font-weight:bold; font-size:16px;">{icon} {row.get('lieu', '')}</div>
                         <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
-                        <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe (5 max) :</b> {row.get('groupe', '')}</div>
+                        <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -395,23 +446,58 @@ elif st.session_state.page_active == "Stands":
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     st.subheader("⚙️ Zone d'Administration")
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["📅 Planifier (Grps de 5)", "👥 Volontaires & Suppression", "🚦 Demandes Feu Vert", "🏫/⛺ Lieux"]
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        [
+            "📅 Planification (3 Auto + 2 Manuel)",
+            "🟢 Connexions en direct",
+            "👥 Volontaires & Suppression",
+            "🚦 Demandes Feu Vert",
+            "🏫/⛺ Lieux",
+        ]
     )
 
-    # 1. PLANIFICATION
+    # 1. PLANIFICATION (TIRAGE AUTO + SÉLECTION MANUELLE)
     with tab1:
         st.markdown("### Créer un créneau de descente")
+        st.info(
+            "💡 **Règle de groupe :** Le programme choisit aléatoirement **3 personnes** parmi les BP, CP, L1. "
+            "Vous sélectionnez ensuite manuellement **2 personnes** (Prof, Admin, B1, L2, L3)."
+        )
+
         p_type = st.radio("Type de mission :", ["École", "Stand"], horizontal=True)
         lieux = sorted(
             st.session_state.ecoles_cibles if p_type == "École" else st.session_state.stands_cibles,
             key=lambda x: x.lower(),
         )
 
-        with st.form("form_p"):
+        # Filtrage des candidats selon les rôles
+        candidats_auto = [
+            c for c in st.session_state.candidats if c.get("statut_filiere") in STATUTS_AUTO
+        ]
+        candidats_manuels = [
+            c for c in st.session_state.candidats if c.get("statut_filiere") in STATUTS_MANUELS
+        ]
+
+        col_tirage, col_res = st.columns([1, 2])
+        with col_tirage:
+            if st.button("🎲 Tirer au sort 3 L1/CP/BP"):
+                if len(candidats_auto) < 3:
+                    st.error(f"❌ Pas assez d'étudiants L1/CP/BP inscrits ({len(candidats_auto)}/3 requis).")
+                else:
+                    st.session_state.tirage_temp_l1 = random.sample(candidats_auto, 3)
+                    st.success("Tirage effectué !")
+
+        with col_res:
+            if st.session_state.tirage_temp_l1:
+                st.markdown("**3 membres tirés au sort (L1 / CP / BP) :**")
+                for item in st.session_state.tirage_temp_l1:
+                    st.markdown(f"- **{item['nom']}** ({item.get('statut_filiere')})")
+            else:
+                st.warning("Aucun tirage en cours. Cliquez sur le bouton pour générer 3 candidats.")
+
+        with st.form("form_p_hybrid"):
             date_choisie = st.date_input("Date exacte de la descente :", datetime.date.today())
             date_formatee = date_choisie.strftime("%A %d %B %Y").capitalize()
-            st.info(f"📆 Date sélectionnée : **{date_formatee}**")
 
             c_h1, c_h2 = st.columns(2)
             with c_h1:
@@ -426,12 +512,24 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             with c_a:
                 p_arrondissement = st.text_input("Arrondissement :")
 
-            candidats_sorted = sorted(st.session_state.candidats, key=lambda x: x.get("nom", "").lower())
-            noms = [f"{c['nom']} ({c.get('statut_filiere', 'L1')})" for c in candidats_sorted]
-            p_groupe = st.multiselect("Volontaires affectés (MAXIMUM 5) :", noms, max_selections=5)
+            noms_manuels = [
+                f"{c['nom']} ({c.get('statut_filiere')})" for c in sorted(candidats_manuels, key=lambda x: x["nom"].lower())
+            ]
+            p_groupe_manuel = st.multiselect(
+                "Sélectionner 2 encadrants / aînés (Prof, Admin, B1, L2, L3) :",
+                noms_manuels,
+                max_selections=2,
+            )
 
-            if st.form_submit_button("Ajouter au planning"):
-                if p_lieu and p_lieu != "Aucun lieu disponible" and p_groupe:
+            if st.form_submit_button("Valider et enregistrer la descente"):
+                if not st.session_state.tirage_temp_l1:
+                    st.error("⚠️ Veuillez effectuer d'abord le tirage au sort des 3 L1/CP/BP.")
+                elif len(p_groupe_manuel) != 2:
+                    st.error("⚠️ Vous devez sélectionner exactement 2 encadrants / aînés.")
+                elif p_lieu and p_lieu != "Aucun lieu disponible":
+                    membres_auto_str = [f"{c['nom']} ({c.get('statut_filiere')})" for c in st.session_state.tirage_temp_l1]
+                    groupe_final = ", ".join(membres_auto_str + p_groupe_manuel)
+
                     st.session_state.planning.append(
                         {
                             "date_mission": date_formatee,
@@ -441,39 +539,55 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                             "lieu": p_lieu,
                             "quartier": p_quartier,
                             "arrondissement": p_arrondissement,
-                            "groupe": ", ".join(p_groupe),
+                            "groupe": groupe_final,
                         }
                     )
                     sauvegarder_planning(st.session_state.planning)
-                    st.success("✅ Créneau ajouté au planning avec succès !")
+                    st.session_state.tirage_temp_l1 = []
+                    st.success("✅ Créneau ajouté au planning avec le groupe au complet (5 personnes) !")
                     st.rerun()
-                else:
-                    st.error("⚠️ Veuillez remplir tous les champs et sélectionner au moins 1 volontaire (Max 5).")
 
         st.markdown("---")
         st.markdown("### Supprimer une descente planifiée")
         if st.session_state.planning:
-            opts = []
-            for i, p in enumerate(st.session_state.planning):
-                d_val = p.get("date_mission", p.get("jour", "Date inconnue"))
-                t_val = p.get("type_mission", "Mission")
-                l_val = p.get("lieu", "Lieu inconnu")
-                opts.append(f"{i+1}. {d_val} | {t_val} : {l_val}")
-
-            idx_del = st.selectbox(
-                "Sélectionner le créneau à annuler :", 
-                range(len(opts)), 
-                format_func=lambda x: opts[x]
-            )
+            opts = [
+                f"{i+1}. {p.get('date_mission', p.get('jour', 'Date inconnue'))} | {p.get('type_mission')} : {p.get('lieu')}"
+                for i, p in enumerate(st.session_state.planning)
+            ]
+            idx_del = st.selectbox("Sélectionner le créneau à annuler :", range(len(opts)), format_func=lambda x: opts[x])
             if st.button("🗑️ Annuler ce créneau"):
                 st.session_state.planning.pop(idx_del)
                 sauvegarder_planning(st.session_state.planning)
                 st.success("Créneau supprimé du planning.")
                 st.rerun()
 
-    # 2. VOLONTAIRES ET SUPPRESSION
+    # 2. CONNEXIONS EN DIRECT / TEMPS RÉEL
     with tab2:
-        st.markdown("### Liste des Volontaires (Ordre Alphabétique)")
+        st.markdown("### 🟢 Utilisateurs actuellement connectés au programme")
+        st.caption("Mise à jour en temps réel (utilisateurs actifs au cours des 5 dernières minutes)")
+
+        if st.button("🔄 Rafraîchir la liste des connexions"):
+            st.rerun()
+
+        connectes = obtenir_utilisateurs_en_ligne()
+        if not connectes:
+            st.info("Aucun utilisateur détecté en ligne actuellement.")
+        else:
+            st.markdown(f"**Nombre d'utilisateurs en ligne :** `{len(connectes)}`")
+            for user in connectes:
+                st.markdown(
+                    f"""
+                    <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid #10B981; 
+                         border-radius: 8px; padding: 10px 15px; margin-bottom: 8px; display: flex; align-items: center;">
+                        <span class="online-badge">EN LIGNE</span> &nbsp;&nbsp; <b>{user}</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    # 3. VOLONTAIRES ET SUPPRESSION
+    with tab3:
+        st.markdown("### Liste des Volontaires inscrits")
         st.session_state.candidats = sorted(st.session_state.candidats, key=lambda x: x.get("nom", "").lower())
 
         if st.session_state.candidats:
@@ -496,23 +610,19 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                         p["groupe"] = ", ".join(membres_filtres)
                 sauvegarder_planning(st.session_state.planning)
 
-                st.success(f"Le volontaire **{vol_a_retirer}** a été retiré de la base de données et des plannings.")
+                st.success(f"Le volontaire **{vol_a_retirer}** a été retiré.")
                 st.rerun()
-        else:
-            st.info("Aucun volontaire inscrit pour le moment.")
 
-    # 3. DEMANDES DE FEU VERT
-    with tab3:
-        st.markdown("### 🚦 Validation des Demandes de Feu Vert (Maladies / Problèmes)")
-        st.session_state.desistements = sorted(st.session_state.desistements, key=lambda x: x.get("nom", "").lower())
-
+    # 4. DEMANDES DE FEU VERT
+    with tab4:
+        st.markdown("### GL Validation des Demandes de Feu Vert")
         if not st.session_state.desistements:
             st.info("Aucune demande de retrait en attente.")
         else:
             for idx, d in enumerate(st.session_state.desistements):
-                with st.expander(f"Demande : {d.get('nom', 'Inconnu')} ({d.get('date_demande', '')})"):
-                    st.write(f"**Email :** {d.get('email', '')}")
-                    st.write(f"**Motif :** {d.get('raison', '')}")
+                with st.expander(f"Demande : {d.get('nom')} ({d.get('date_demande')})"):
+                    st.write(f"**Email :** {d.get('email')}")
+                    st.write(f"**Motif :** {d.get('raison')}")
 
                     c_acc, c_ref = st.columns(2)
                     if c_acc.button(f"🟢 Accorder Feu Vert", key=f"acc_fv_{idx}"):
@@ -521,11 +631,9 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                             c for c in st.session_state.candidats if c["nom"].lower() not in nom_des
                         ]
                         sauvegarder_candidats(st.session_state.candidats)
-
                         st.session_state.desistements.pop(idx)
                         sauvegarder_desistements(st.session_state.desistements)
-
-                        st.success("Feu vert accordé. Le volontaire a été retiré.")
+                        st.success("Feu vert accordé.")
                         st.rerun()
 
                     if c_ref.button(f"🔴 Refuser la demande", key=f"ref_fv_{idx}"):
@@ -534,18 +642,14 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                         st.warning("Demande rejetée.")
                         st.rerun()
 
-    # 4. GESTION DES LIEUX
-    with tab4:
-        st.session_state.ecoles_cibles = sorted(st.session_state.ecoles_cibles, key=lambda x: x.lower())
-        st.session_state.stands_cibles = sorted(st.session_state.stands_cibles, key=lambda x: x.lower())
-
+    # 5. GESTION DES LIEUX
+    with tab5:
         c_e, c_s = st.columns(2)
         with c_e:
             st.markdown("#### 🏫 Ajouter / Retirer des Écoles")
             with st.form("form_add_ecole", clear_on_submit=True):
                 ne = st.text_input("Nouvelle école :").strip()
-                btn_add_e = st.form_submit_button("Ajouter École")
-                if btn_add_e and ne:
+                if st.form_submit_button("Ajouter École") and ne:
                     if ne not in st.session_state.ecoles_cibles:
                         st.session_state.ecoles_cibles.append(ne)
                         sauvegarder_csv_liste(FICHIER_ECOLES, st.session_state.ecoles_cibles)
@@ -564,8 +668,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             st.markdown("#### ⛺ Ajouter / Retirer des Stands")
             with st.form("form_add_stand", clear_on_submit=True):
                 ns = st.text_input("Nouveau stand :").strip()
-                btn_add_s = st.form_submit_button("Ajouter Stand")
-                if btn_add_s and ns:
+                if st.form_submit_button("Ajouter Stand") and ns:
                     if ns not in st.session_state.stands_cibles:
                         st.session_state.stands_cibles.append(ns)
                         sauvegarder_csv_liste(FICHIER_STANDS, st.session_state.stands_cibles)
