@@ -17,16 +17,19 @@ FICHIER_DEMANDES_DESISTEMENT = "demandes_desistement.csv"
 ADMIN_EMAILS = [
     "ninon.ombeandonga@2030.ucac-icam.com",
     "gedidia.mabahou@2030.ucac-icam.com",
+    "brainy.ngamouyi@2030.ucac-icam.com",
     "admin@ucac-icam.com",
 ]
 
 STATUTS_POSSIBLES = [
+    "BP",
+    "B1",
     "L1",
     "L2",
     "L3",
+    "CP (Cycle Préparatoire)",
     "Membre de l'administration",
     "Enseignant / Professeur",
-    "CP (Chef de Projet / Chargé de Programme)",
 ]
 
 JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
@@ -458,5 +461,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 opts.append(f"{i+1}. {d_val} | {t_val} : {l_val}")
 
             idx_del = st.selectbox(
-                "Sélectionner le créneau à annuler :", range(len(opts)), format_func=lambda x: opts[x]
-            )
+                "Sélectionner le créneau à annuler :", range(len(opts)), format_f
