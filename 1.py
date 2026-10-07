@@ -38,6 +38,27 @@ JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(7, 19)]
 
 # ---------------------------------------------------------
+# OPTIMISATION : CACHING STREAMLIT POUR L'IMAGE
+# ---------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def Obtenir_bg_base64():
+    """Charge et met en cache l'image de fond pour éviter de ralentir le serveur."""
+    image_path = None
+    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
+        if os.path.exists(ext):
+            image_path = ext
+            break
+    if image_path:
+        try:
+            with open(image_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode()
+                mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
+                return f"data:{mime};base64,{encoded}"
+        except Exception:
+            return None
+    return None
+
+# ---------------------------------------------------------
 # FONCTIONS DE PERSISTANCE CSV & PRÉSENCE
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
@@ -125,7 +146,9 @@ def sauvegarder_desistements(desistements):
         writer.writerows(desistements_tries)
 
 def mettre_a_jour_presence(email):
-    """Enregistre l'activité récente de l'utilisateur pour le suivi en temps réel."""
+    """Met à jour l'horodatage de l'utilisateur."""
+    if not email:
+        return
     maintenant = time.time()
     presences = {}
     if os.path.exists(FICHIER_PRESENCE):
@@ -136,16 +159,20 @@ def mettre_a_jour_presence(email):
                     presences[row["email"]] = float(row["last_ping"])
         except Exception:
             pass
-    presences[email] = maintenant
-
-    # Nettoyage des sessions inactives (> 5 minutes)
-    presences = {e: t for e, t in presences.items() if maintenant - t < 300}
-
-    with open(FICHIER_PRESENCE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["email", "last_ping"])
-        writer.writeheader()
-        for e, t in presences.items():
-            writer.writerow({"email": e, "last_ping": t})
+            
+    # Ne réécrire que si le dernier ping date de plus de 30 secondes pour économiser les accès disque
+    if email not in presences or (maintenant - presences[email]) > 30:
+        presences[email] = maintenant
+        # Nettoyage des inactifs (> 5 minutes)
+        presences = {e: t for e, t in presences.items() if maintenant - t < 300}
+        try:
+            with open(FICHIER_PRESENCE, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=["email", "last_ping"])
+                writer.writeheader()
+                for e, t in presences.items():
+                    writer.writerow({"email": e, "last_ping": t})
+        except Exception:
+            pass
 
 def obtenir_utilisateurs_en_ligne():
     """Renvoie la liste des utilisateurs actifs ces 5 dernières minutes."""
@@ -164,21 +191,8 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# BACKGROUND & STYLE
+# CONFIGURATION ET CSS
 # ---------------------------------------------------------
-def Obtenir_bg_base64():
-    image_path = None
-    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
-        if os.path.exists(ext):
-            image_path = ext
-            break
-    if image_path:
-        with open(image_path, "rb") as image_file:
-            encoded = base64.b64encode(image_file.read()).decode()
-            mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
-            return f"data:{mime};base64,{encoded}"
-    return None
-
 st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
 
 bg_data = Obtenir_bg_base64()
@@ -276,7 +290,7 @@ if not st.session_state.user_email:
                 st.rerun()
     st.stop()
 
-# Mettre à jour le statut de présence en temps réel
+# Actualisation automatique de la présence
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
@@ -324,7 +338,7 @@ with nav_cols[3]:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# GESTION DES PAGES
+# PAGES DE L'APPLICATION
 # ---------------------------------------------------------
 
 # --- ACCUEIL / PLANNING ---
@@ -456,7 +470,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         ]
     )
 
-    # 1. PLANIFICATION (TIRAGE AUTO + SÉLECTION MANUELLE)
+    # 1. PLANIFICATION
     with tab1:
         st.markdown("### Créer un créneau de descente")
         st.info(
@@ -470,7 +484,6 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             key=lambda x: x.lower(),
         )
 
-        # Filtrage des candidats selon les rôles
         candidats_auto = [
             c for c in st.session_state.candidats if c.get("statut_filiere") in STATUTS_AUTO
         ]
@@ -561,7 +574,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 st.success("Créneau supprimé du planning.")
                 st.rerun()
 
-    # 2. CONNEXIONS EN DIRECT / TEMPS RÉEL
+    # 2. CONNEXIONS EN DIRECT
     with tab2:
         st.markdown("### 🟢 Utilisateurs actuellement connectés au programme")
         st.caption("Mise à jour en temps réel (utilisateurs actifs au cours des 5 dernières minutes)")
@@ -615,7 +628,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
 
     # 4. DEMANDES DE FEU VERT
     with tab4:
-        st.markdown("### GL Validation des Demandes de Feu Vert")
+        st.markdown("### 🚦 Validation des Demandes de Feu Vert")
         if not st.session_state.desistements:
             st.info("Aucune demande de retrait en attente.")
         else:
