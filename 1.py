@@ -160,10 +160,8 @@ def mettre_a_jour_presence(email):
         except Exception:
             pass
             
-    # Ne réécrire que si le dernier ping date de plus de 30 secondes pour économiser les accès disque
     if email not in presences or (maintenant - presences[email]) > 30:
         presences[email] = maintenant
-        # Nettoyage des inactifs (> 5 minutes)
         presences = {e: t for e, t in presences.items() if maintenant - t < 300}
         try:
             with open(FICHIER_PRESENCE, "w", newline="", encoding="utf-8") as f:
@@ -265,21 +263,21 @@ if "tirage_temp_l1" not in st.session_state:
     st.session_state.tirage_temp_l1 = []
 
 # ---------------------------------------------------------
-# CONNEXION INITIALE
+# CONNEXION INITIALE (AVEC BIENVENUE)
 # ---------------------------------------------------------
 if not st.session_state.user_email:
-    st.title("Recrutement UCAC-ICAM")
+    st.title("Bienvenue")
     st.markdown(
         """
         <div class="banner-blue" style="text-align: center; padding: 30px;">
-            <h2 style="margin:0; color:white;">🎓 Portail de Recrutement UCAC-ICAM</h2>
-            <p style="margin-top:10px; font-size:16px;">Connectez-vous pour vous inscrire ou consulter le planning des descentes.</p>
+            <h2 style="margin:0; color:white;">👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM</h2>
+            <p style="margin-top:10px; font-size:16px;">Veuillez entrer votre adresse e-mail pour vous connecter et accéder au service.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
     with st.form("login_form"):
-        email_input = st.text_input("Adresse e-mail :").strip().lower()
+        email_input = st.text_input("Adresse e-mail :", placeholder="exemple@ucac-icam.com").strip().lower()
         if st.form_submit_button("Se connecter"):
             if not email_input or "@" not in email_input:
                 st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
@@ -382,7 +380,7 @@ if st.session_state.page_active == "Accueil":
                     unsafe_allow_html=True,
                 )
 
-# --- INSCRIPTION ---
+# --- INSCRIPTION & RETRAIT ---
 elif st.session_state.page_active == "Inscription":
     st.subheader("📝 Inscription & Gestion de ma participation")
     tab_inscr, tab_desist = st.tabs(["Formulaire d'inscription", "🏥 Demande de Retrait / Feu Vert"])
@@ -418,14 +416,12 @@ elif st.session_state.page_active == "Inscription":
     with tab_desist:
         st.markdown("### 🏥 Signaler un empêchement ou une maladie")
         with st.form("form_desistement"):
-            nom_volontaire = st.text_input(
-                "Nom et Prénom :",
-                value=st.session_state.user_email.split("@")[0].replace(".", " ").title(),
-            )
+            # Champ nom laissé vide par défaut
+            nom_volontaire = st.text_input("Nom et Prénom :", placeholder="Entrez votre nom et prénom").strip().title()
             raison = st.text_area("Raison du désistement :")
             if st.form_submit_button("Envoyer la demande de feu vert à l'Admin"):
-                if not raison:
-                    st.error("⚠️ Veuillez indiquer le motif de votre absence.")
+                if not nom_volontaire or not raison:
+                    st.error("⚠️ Veuillez renseigner votre nom ainsi que le motif de votre absence.")
                 else:
                     st.session_state.desistements.append(
                         {
