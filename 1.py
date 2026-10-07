@@ -462,3 +462,126 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
 
             idx_del = st.selectbox(
                 "Sélectionner le créneau à annuler :", range(len(opts)), format_f
+                idx_del = st.selectbox(
+                "Sélectionner le créneau à annuler :", 
+                range(len(opts)), 
+                format_func=lambda x: opts[x]
+            )
+            if st.button("🗑️ Annuler ce créneau"):
+                st.session_state.planning.pop(idx_del)
+                sauvegarder_planning(st.session_state.planning)
+                st.success("Créneau supprimé du planning.")
+                st.rerun()
+
+    # 2. VOLONTAIRES ET SUPPRESSION
+    with tab2:
+        st.markdown("### Liste des Volontaires (Ordre Alphabétique)")
+        st.session_state.candidats = sorted(st.session_state.candidats, key=lambda x: x.get("nom", "").lower())
+
+        if st.session_state.candidats:
+            df_cand = pd.DataFrame(st.session_state.candidats)
+            st.dataframe(df_cand, use_container_width=True)
+
+            st.markdown("---")
+            st.markdown("### 🚫 Retirer un volontaire du recrutement")
+            noms_volontaires = [c["nom"] for c in st.session_state.candidats]
+            vol_a_retirer = st.selectbox("Sélectionner le volontaire à exclure/retirer :", noms_volontaires)
+
+            if st.button("🚨 Confirmer le retrait du volontaire", key="btn_suppr_volontaire"):
+                st.session_state.candidats = [c for c in st.session_state.candidats if c["nom"] != vol_a_retirer]
+                sauvegarder_candidats(st.session_state.candidats)
+
+                for p in st.session_state.planning:
+                    if "groupe" in p and p["groupe"]:
+                        membres = [m.strip() for m in p["groupe"].split(",")]
+                        membres_filtres = [m for m in membres if not m.startswith(vol_a_retirer)]
+                        p["groupe"] = ", ".join(membres_filtres)
+                sauvegarder_planning(st.session_state.planning)
+
+                st.success(f"Le volontaire **{vol_a_retirer}** a été retiré de la base de données et des plannings.")
+                st.rerun()
+        else:
+            st.info("Aucun volontaire inscrit pour le moment.")
+
+    # 3. DEMANDES DE FEU VERT
+    with tab3:
+        st.markdown("### 🚦 Validation des Demandes de Feu Vert (Maladies / Problèmes)")
+        st.session_state.desistements = sorted(st.session_state.desistements, key=lambda x: x.get("nom", "").lower())
+
+        if not st.session_state.desistements:
+            st.info("Aucune demande de retrait en attente.")
+        else:
+            for idx, d in enumerate(st.session_state.desistements):
+                with st.expander(f"Demande : {d.get('nom', 'Inconnu')} ({d.get('date_demande', '')})"):
+                    st.write(f"**Email :** {d.get('email', '')}")
+                    st.write(f"**Motif :** {d.get('raison', '')}")
+
+                    c_acc, c_ref = st.columns(2)
+                    if c_acc.button(f"🟢 Accorder Feu Vert", key=f"acc_fv_{idx}"):
+                        nom_des = d.get("nom", "").lower()
+                        st.session_state.candidats = [
+                            c for c in st.session_state.candidats if c["nom"].lower() not in nom_des
+                        ]
+                        sauvegarder_candidats(st.session_state.candidats)
+
+                        st.session_state.desistements.pop(idx)
+                        sauvegarder_desistements(st.session_state.desistements)
+
+                        st.success("Feu vert accordé. Le volontaire a été retiré.")
+                        st.rerun()
+
+                    if c_ref.button(f"🔴 Refuser la demande", key=f"ref_fv_{idx}"):
+                        st.session_state.desistements.pop(idx)
+                        sauvegarder_desistements(st.session_state.desistements)
+                        st.warning("Demande rejetée.")
+                        st.rerun()
+
+    # 4. GESTION DES LIEUX
+    with tab4:
+        st.session_state.ecoles_cibles = sorted(st.session_state.ecoles_cibles, key=lambda x: x.lower())
+        st.session_state.stands_cibles = sorted(st.session_state.stands_cibles, key=lambda x: x.lower())
+
+        c_e, c_s = st.columns(2)
+        with c_e:
+            st.markdown("#### 🏫 Ajouter / Retirer des Écoles")
+            with st.form("form_add_ecole", clear_on_submit=True):
+                ne = st.text_input("Nouvelle école :").strip()
+                btn_add_e = st.form_submit_button("Ajouter École")
+                if btn_add_e and ne:
+                    if ne not in st.session_state.ecoles_cibles:
+                        st.session_state.ecoles_cibles.append(ne)
+                        sauvegarder_csv_liste(FICHIER_ECOLES, st.session_state.ecoles_cibles)
+                        st.success(f"École '{ne}' ajoutée !")
+                        st.rerun()
+
+            if st.session_state.ecoles_cibles:
+                es = st.selectbox("Supprimer une école :", st.session_state.ecoles_cibles, key="select_del_ecole")
+                if st.button("Supprimer École", key="btn_del_ecole"):
+                    st.session_state.ecoles_cibles.remove(es)
+                    sauvegarder_csv_liste(FICHIER_ECOLES, st.session_state.ecoles_cibles)
+                    st.success("École supprimée.")
+                    st.rerun()
+
+        with c_s:
+            st.markdown("#### ⛺ Ajouter / Retirer des Stands")
+            with st.form("form_add_stand", clear_on_submit=True):
+                ns = st.text_input("Nouveau stand :").strip()
+                btn_add_s = st.form_submit_button("Ajouter Stand")
+                if btn_add_s and ns:
+                    if ns not in st.session_state.stands_cibles:
+                        st.session_state.stands_cibles.append(ns)
+                        sauvegarder_csv_liste(FICHIER_STANDS, st.session_state.stands_cibles)
+                        st.success(f"Stand '{ns}' ajouté !")
+                        st.rerun()
+
+            if st.session_state.stands_cibles:
+                ss = st.selectbox("Supprimer un stand :", st.session_state.stands_cibles, key="select_del_stand")
+                if st.button("Supprimer Stand", key="btn_del_stand"):
+                    st.session_state.stands_cibles.remove(ss)
+                    sauvegarder_csv_liste(FICHIER_STANDS, st.session_state.stands_cibles)
+                    st.success("Stand supprimé.")
+                    st.rerun()
+
+# Pied de page
+st.markdown("---")
+st.caption("© UCAC-ICAM — Plateforme de Recrutement")
