@@ -38,27 +38,6 @@ JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(7, 19)]
 
 # ---------------------------------------------------------
-# OPTIMISATION : CACHING STREAMLIT POUR L'IMAGE
-# ---------------------------------------------------------
-@st.cache_data(show_spinner=False)
-def Obtenir_bg_base64():
-    """Charge et met en cache l'image de fond pour éviter de ralentir le serveur."""
-    image_path = None
-    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
-        if os.path.exists(ext):
-            image_path = ext
-            break
-    if image_path:
-        try:
-            with open(image_path, "rb") as image_file:
-                encoded = base64.b64encode(image_file.read()).decode()
-                mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
-                return f"data:{mime};base64,{encoded}"
-        except Exception:
-            return None
-    return None
-
-# ---------------------------------------------------------
 # FONCTIONS DE PERSISTANCE CSV & PRÉSENCE
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
@@ -189,50 +168,110 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# CONFIGURATION ET CSS
+# CONFIGURATION ET THÈME STYLISÉ (UCAC-ICAM & MOODLE)
 # ---------------------------------------------------------
-st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="UCAC-ICAM — Recrutement", page_icon="🎓", layout="wide")
 
-bg_data = Obtenir_bg_base64()
-bg_css = f"""
-.stApp {{
-    background: linear-gradient(rgba(18, 20, 23, 0.70), rgba(18, 20, 23, 0.85)), url("{bg_data}");
-    background-size: cover; background-position: center; background-attachment: fixed; color: #FFFFFF;
-}}
-""" if bg_data else ".stApp { background-color: #121417; color: #FFFFFF; }"
-
+# CSS personnalisé pour reproduire la charte graphique UCAC-ICAM (Rouge Bordeau / Moodle)
 st.markdown(
-    f"""
+    """
     <style>
-    {bg_css}
-    #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
+    /* Style général */
+    .stApp {
+        background-color: #F8F9FA;
+        color: #212529;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
     
-    div.stButton > button {{
-        width: 100% !important; height: 52px !important; font-size: 14px !important;
-        font-weight: 700 !important; border-radius: 12px !important;
-        background-color: rgba(28, 32, 38, 0.85) !important; color: #FFFFFF !important;
-        border: 2px solid #3A3F4D !important; backdrop-filter: blur(8px);
+    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
+    
+    /* Barre supérieure style UCAC-ICAM rouge */
+    .ucac-header {
+        background-color: #8B0000;
+        background: linear-gradient(90deg, #8B0000 0%, #A6192E 100%);
+        padding: 12px 25px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 3px solid #660000;
+        border-radius: 0 0 8px 8px;
+        margin-bottom: 20px;
+    }
+    
+    .ucac-logo-text {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        color: #FFFFFF;
+    }
+    .ucac-subtitle {
+        font-size: 13px;
+        color: #FFCCCC;
+        margin-top: -2px;
+    }
+
+    /* Cartes d'affichage style UCAC */
+    .event-card {
+        background-color: #FFFFFF;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 14px;
+        border-left: 5px solid #A6192E;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    
+    .banner-red {
+        background: linear-gradient(135deg, #A6192E 0%, #8B0000 100%);
+        border-radius: 8px;
+        padding: 25px;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(166, 25, 46, 0.2);
+    }
+
+    /* Modificateurs de boutons navigation */
+    div.stButton > button {
+        width: 100% !important;
+        height: 46px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        background-color: #A6192E !important;
+        color: #FFFFFF !important;
+        border: none !important;
         transition: all 0.2s ease-in-out !important;
-    }}
-    div.stButton > button:hover {{
-        background-color: #1B72E8 !important; color: #FFFFFF !important; border-color: #1B72E8 !important;
-    }}
-    .banner-bronze {{
-        background-color: rgba(74, 43, 15, 0.85); border-radius: 12px; padding: 16px 20px;
-        color: #FCE7D0; margin: 15px 0; border: 1px solid #6E3F15; backdrop-filter: blur(5px);
-    }}
-    .banner-blue {{
-        background: linear-gradient(135deg, rgba(28, 84, 206, 0.85) 0%, rgba(23, 113, 235, 0.85) 100%);
-        border-radius: 14px; padding: 20px; color: white; margin-bottom: 25px; backdrop-filter: blur(5px);
-    }}
-    .event-card {{
-        background-color: rgba(28, 32, 38, 0.85); border-radius: 12px; padding: 14px 18px;
-        margin-bottom: 12px; border-left: 4px solid #1B72E8; backdrop-filter: blur(5px);
-    }}
-    .online-badge {{
-        display: inline-block; background-color: #10B981; color: white;
-        padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold;
-    }}
+    }
+    div.stButton > button:hover {
+        background-color: #8B0000 !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    /* Menu déroulant profil style Moodle */
+    .moodle-profile-box {
+        background-color: #FFFFFF;
+        border: 1px solid #DEE2E6;
+        border-radius: 6px;
+        padding: 12px 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
+    }
+    .moodle-item {
+        padding: 6px 0;
+        color: #333333;
+        font-size: 14px;
+        border-bottom: 1px solid #F0F0F0;
+    }
+    
+    .online-badge {
+        display: inline-block;
+        background-color: #10B981;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: bold;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -245,8 +284,8 @@ if "user_email" not in st.session_state:
     st.session_state.user_email = None
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
-if "show_logout_menu" not in st.session_state:
-    st.session_state.show_logout_menu = False
+if "show_profile_menu" not in st.session_state:
+    st.session_state.show_profile_menu = False
 if "candidats" not in st.session_state:
     st.session_state.candidats = charger_candidats()
 if "ecoles_cibles" not in st.session_state:
@@ -263,15 +302,25 @@ if "tirage_temp_l1" not in st.session_state:
     st.session_state.tirage_temp_l1 = []
 
 # ---------------------------------------------------------
-# CONNEXION INITIALE (AVEC BIENVENUE)
+# CONNEXION INITIALE (PAGE DE BIENVENUE)
 # ---------------------------------------------------------
 if not st.session_state.user_email:
-    st.title("Bienvenue")
     st.markdown(
         """
-        <div class="banner-blue" style="text-align: center; padding: 30px;">
+        <div class="ucac-header">
+            <div>
+                <div class="ucac-logo-text">🎓 INSTITUT UCAC-ICAM</div>
+                <div class="ucac-subtitle">Portail Officiel de Recrutement</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="banner-red" style="text-align: center;">
             <h2 style="margin:0; color:white;">👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM</h2>
-            <p style="margin-top:10px; font-size:16px;">Veuillez entrer votre adresse e-mail pour vous connecter et accéder au service.</p>
+            <p style="margin-top:10px; font-size:15px; color:#FFE6E6;">Entrez votre adresse e-mail institutionnelle pour accéder à la plateforme.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -292,29 +341,65 @@ if not st.session_state.user_email:
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# EN-TÊTE ET NAVIGATION
+# EN-TÊTE UCAC-ICAM ET MENU PROFIL STYLE MOODLE
 # ---------------------------------------------------------
-col_title, col_user_btn, col_gear = st.columns([5, 4, 1]) if st.session_state.is_admin else st.columns([6, 4, 1])
+# Extraction de l'initiale pour le macaron de profil (ex: "ON" ou "N")
+user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
+initiales = "".join([part[0].upper() for part in user_prefix.split()[:2]]) if user_prefix else "U"
+
+st.markdown(
+    f"""
+    <div class="ucac-header">
+        <div>
+            <div class="ucac-logo-text">UCAC-ICAM</div>
+            <div class="ucac-subtitle">Plateforme de Recrutement & Campagne</div>
+        </div>
+        <div style="font-size: 14px; font-weight: 600;">
+            PORTAIL APPRENANTS & ADMINISTRATION
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# En-tête avec bouton profil style Moodle / ICAM (Images 1 & 2)
+col_title, col_space, col_user = st.columns([5, 2, 3])
 with col_title:
-    st.title("Recrutement UCAC-ICAM")
-with col_user_btn:
-    if st.button(f"👤 {st.session_state.user_email}", key="btn_user_profile"):
-        st.session_state.show_logout_menu = not st.session_state.show_logout_menu
+    st.markdown(f"### 📍 Espace Recrutement — `{st.session_state.user_email}`")
+
+with col_user:
+    c_prof, c_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user, None)
+    
+    # Bouton de profil style Moodle avec bulle d'initiales
+    if c_prof.button(f"👤 {user_prefix} [{initiales}] ▾", key="btn_moodle_profile"):
+        st.session_state.show_profile_menu = not st.session_state.show_profile_menu
         st.rerun()
-
-if st.session_state.is_admin and col_gear.button("⚙️", key="btn_admin_gear", help="Zone d'administration"):
-    st.session_state.page_active = "Admin"
-    st.rerun()
-
-if st.session_state.show_logout_menu:
-    col_empty, col_logout_sub = st.columns([6, 4])
-    with col_logout_sub:
-        if st.button("🚪 Déconnexion", key="btn_confirm_logout"):
-            st.session_state.user_email = None
-            st.session_state.is_admin = False
-            st.session_state.show_logout_menu = False
+        
+    if st.session_state.is_admin and c_gear:
+        if c_gear.button("⚙️", key="btn_admin_gear", help="Administration"):
+            st.session_state.page_active = "Admin"
             st.rerun()
 
+# Menu déroulant Profil style Moodle (Image 1)
+if st.session_state.show_profile_menu:
+    st.markdown(
+        f"""
+        <div class="moodle-profile-box">
+            <div class="moodle-item"><b>👤 {user_prefix}</b></div>
+            <div class="moodle-item">📧 <i>{st.session_state.user_email}</i></div>
+            <div class="moodle-item">🎓 Statut : {'Administrateur' if st.session_state.is_admin else 'Volontaire / Apprenant'}</div>
+            <div class="moodle-item">🌐 Langue : Français</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("🚪 Déconnexion", key="btn_logout_moodle"):
+        st.session_state.user_email = None
+        st.session_state.is_admin = False
+        st.session_state.show_profile_menu = False
+        st.rerun()
+
+# Barre de navigation principale
 nav_cols = st.columns(4)
 with nav_cols[0]:
     if st.button("📝 Inscription / Profil", key="nav_inscrire"):
@@ -342,7 +427,12 @@ st.markdown("---")
 # --- ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
     st.markdown(
-        '<div class="banner-bronze"><h4>Planning Officiel des Descentes</h4><p>Retrouvez ici les équipes constituées (3 Étudiants L1/CP/BP + 2 Encadrants/Aînés) classées par date.</p></div>',
+        """
+        <div class="banner-red">
+            <h4 style="margin:0; color:white;">📅 Planning Officiel des Descentes Terrain</h4>
+            <p style="margin-top:6px; color:#FFE6E6; font-size:14px;">Retrouvez les équipes constituées (3 Étudiants L1/CP/BP + 2 Encadrants/Aînés) classées par date de sortie.</p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -354,7 +444,7 @@ if st.session_state.page_active == "Accueil":
         dates_uniques = df_plan[col_date].unique()
         for d in dates_uniques:
             st.markdown(
-                f'<div style="font-size:18px; font-weight:bold; margin-top:20px; color:#60A5FA;">📅 {d}</div>',
+                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#A6192E;">📅 {d}</div>',
                 unsafe_allow_html=True,
             )
             items_d = df_plan[df_plan[col_date] == d]
@@ -372,9 +462,9 @@ if st.session_state.page_active == "Accueil":
                 st.markdown(
                     f"""
                     <div class="event-card">
-                        <div style="font-weight:bold; font-size:16px;">{icon} {row.get('lieu', '')}</div>
-                        <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
-                        <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
+                        <div style="font-weight:bold; font-size:16px; color:#A6192E;">{icon} {row.get('lieu', '')}</div>
+                        <div style="color:#666666; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
+                        <div style="color:#212529; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -416,7 +506,6 @@ elif st.session_state.page_active == "Inscription":
     with tab_desist:
         st.markdown("### 🏥 Signaler un empêchement ou une maladie")
         with st.form("form_desistement"):
-            # Champ nom laissé vide par défaut
             nom_volontaire = st.text_input("Nom et Prénom :", placeholder="Entrez votre nom et prénom").strip().title()
             raison = st.text_area("Raison du désistement :")
             if st.form_submit_button("Envoyer la demande de feu vert à l'Admin"):
@@ -586,8 +675,8 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             for user in connectes:
                 st.markdown(
                     f"""
-                    <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid #10B981; 
-                         border-radius: 8px; padding: 10px 15px; margin-bottom: 8px; display: flex; align-items: center;">
+                    <div style="background-color: #E6F4EA; border: 1px solid #10B981; 
+                         border-radius: 8px; padding: 10px 15px; margin-bottom: 8px; color: #111827;">
                         <span class="online-badge">EN LIGNE</span> &nbsp;&nbsp; <b>{user}</b>
                     </div>
                     """,
@@ -694,4 +783,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
 
 # Pied de page
 st.markdown("---")
-st.caption("© UCAC-ICAM — Plateforme de Recrutement")
+st.caption("© Institut UCAC-ICAM — Plateforme de Recrutement")
