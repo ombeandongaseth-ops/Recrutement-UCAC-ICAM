@@ -40,13 +40,15 @@ def charger_csv_liste(fichier):
         return []
     try:
         with open(fichier, "r", encoding="utf-8") as f:
-            return [line.strip() for line in f.read().splitlines() if line.strip()]
+            items = [line.strip() for line in f.read().splitlines() if line.strip()]
+            return sorted(items, key=lambda x: x.lower())  # Tri alphabétique
     except Exception:
         return []
 
 def sauvegarder_csv_liste(fichier, liste_items):
+    liste_triee = sorted(liste_items, key=lambda x: x.lower())
     with open(fichier, "w", encoding="utf-8") as f:
-        for item in liste_items:
+        for item in liste_triee:
             f.write(f"{item}\n")
 
 def charger_candidats():
@@ -64,17 +66,19 @@ def charger_candidats():
                 if "jours_dispo" not in row:
                     row["jours_dispo"] = "Tous les jours"
                 candidats.append(row)
-            return candidats
+            # Tri alphabétique par nom
+            return sorted(candidats, key=lambda x: x.get("nom", "").lower())
     except Exception:
         return []
 
 def sauvegarder_candidats(candidats):
+    candidats_tries = sorted(candidats, key=lambda x: x.get("nom", "").lower())
     with open(FICHIER_CANDIDATS, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f, fieldnames=["nom", "statut_filiere", "ecole", "quartier", "role_souhaite", "jours_dispo"]
         )
         writer.writeheader()
-        writer.writerows(candidats)
+        writer.writerows(candidats_tries)
 
 def charger_planning():
     if not os.path.exists(FICHIER_PLANNING):
@@ -82,7 +86,13 @@ def charger_planning():
     try:
         with open(FICHIER_PLANNING, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            return list(reader)
+            planning = []
+            for row in reader:
+                # Rétrocompatibilité avec l'ancien champ "jour"
+                if "date_mission" not in row or not row["date_mission"]:
+                    row["date_mission"] = row.get("jour", "Date non précisée")
+                planning.append(row)
+            return planning
     except Exception:
         return []
 
@@ -99,15 +109,17 @@ def charger_desistements():
         return []
     try:
         with open(FICHIER_DEMANDES_DESISTEMENT, "r", encoding="utf-8") as f:
-            return list(csv.DictReader(f))
+            desistements = list(csv.DictReader(f))
+            return sorted(desistements, key=lambda x: x.get("nom", "").lower())
     except Exception:
         return []
 
 def sauvegarder_desistements(desistements):
+    desistements_tries = sorted(desistements, key=lambda x: x.get("nom", "").lower())
     with open(FICHIER_DEMANDES_DESISTEMENT, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["email", "nom", "raison", "date_demande"])
         writer.writeheader()
-        writer.writerows(desistements)
+        writer.writerows(desistements_tries)
 
 # ---------------------------------------------------------
 # BACKGROUND & STYLE
@@ -162,9 +174,6 @@ st.markdown(
         background-color: rgba(28, 32, 38, 0.85); border-radius: 12px; padding: 14px 18px;
         margin-bottom: 12px; border-left: 4px solid #1B72E8; backdrop-filter: blur(5px);
     }}
-    .badge-filiere {{
-        background-color: #1E3A8A; color: #93C5FD; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: bold;
-    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -184,7 +193,7 @@ if "desistements" not in st.session_state: st.session_state.desistements = charg
 if "page_active" not in st.session_state: st.session_state.page_active = "Accueil"
 
 # ---------------------------------------------------------
-# ÉCRAN DE CONNEXION INITIALE
+# CONNEXION INITIALE
 # ---------------------------------------------------------
 if not st.session_state.user_email:
     st.title("Recrutement UCAC-ICAM")
@@ -246,21 +255,22 @@ st.markdown("---")
 # GESTION DES PAGES
 # ---------------------------------------------------------
 
-# --- PAGE ACCUEIL / PLANNING ---
+# --- ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
-    st.markdown('<div class="banner-bronze"><h4>Planning Officiel des Descentes</h4><p>Retrouvez ici les équipes constituées (5 personnes max) par date et heure.</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="banner-bronze"><h4>Planning Officiel des Descentes</h4><p>Retrouvez ici les équipes constituées (5 personnes max) classées par date.</p></div>', unsafe_allow_html=True)
 
     df_plan = pd.DataFrame(st.session_state.planning)
     if df_plan.empty:
         st.info("Aucune descente planifiée pour le moment.")
     else:
-        dates_uniques = df_plan["date_mission"].unique() if "date_mission" in df_plan.columns else []
+        col_date = "date_mission" if "date_mission" in df_plan.columns else "jour"
+        dates_uniques = df_plan[col_date].unique()
         for d in dates_uniques:
             st.markdown(f'<div style="font-size:18px; font-weight:bold; margin-top:20px; color:#60A5FA;">📅 {d}</div>', unsafe_allow_html=True)
-            items_d = df_plan[df_plan["date_mission"] == d]
+            items_d = df_plan[df_plan[col_date] == d]
             for _, row in items_d.iterrows():
                 icon = "🏫" if row.get("type_mission") == "École" else "⛺"
-                h_deb = row.get("heure_debut", "")
+                h_deb = row.get("heure_debut", row.get("heure", ""))
                 h_fin = row.get("heure_fin", "")
                 horaire = f"{h_deb} - {h_fin}" if h_fin else h_deb
                 quartier_info = f" | 📍 {row.get('quartier', '')} ({row.get('arrondissement', '')})" if row.get('quartier') else ""
@@ -268,19 +278,18 @@ if st.session_state.page_active == "Accueil":
                 st.markdown(
                     f"""
                     <div class="event-card">
-                        <div style="font-weight:bold; font-size:16px;">{icon} {row['lieu']}</div>
+                        <div style="font-weight:bold; font-size:16px;">{icon} {row.get('lieu', '')}</div>
                         <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
-                        <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe (5 max) :</b> {row['groupe']}</div>
+                        <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe (5 max) :</b> {row.get('groupe', '')}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-# --- PAGE INSCRIPTION ET GESTION INDIVIDUELLE ---
+# --- INSCRIPTION ---
 elif st.session_state.page_active == "Inscription":
     st.subheader("📝 Inscription & Gestion de ma participation")
-
-    tab_inscr, tab_desist = st.tabs(["Formulaire d'inscription", "🏥 Demande de Retrait / Maladie"])
+    tab_inscr, tab_desist = st.tabs(["Formulaire d'inscription", "🏥 Demande de Retrait / Feu Vert"])
 
     with tab_inscr:
         with st.form("form_candidat", clear_on_submit=True):
@@ -309,11 +318,9 @@ elif st.session_state.page_active == "Inscription":
 
     with tab_desist:
         st.markdown("### 🏥 Signaler un empêchement ou une maladie")
-        st.write("En cas d'empêchement majeur (maladie, urgence académique/personnelle), vous pouvez demander votre retrait de la campagne. La demande sera soumise à la confirmation de l'administration.")
-        
         with st.form("form_desistement"):
             nom_volontaire = st.text_input("Nom et Prénom :", value=st.session_state.user_email.split('@')[0].replace('.', ' ').title())
-            raison = st.text_area("Raison du désistement / certificat :")
+            raison = st.text_area("Raison du désistement :")
             if st.form_submit_button("Envoyer la demande de feu vert à l'Admin"):
                 if not raison:
                     st.error("⚠️ Veuillez indiquer le motif de votre absence.")
@@ -325,42 +332,41 @@ elif st.session_state.page_active == "Inscription":
                         "date_demande": datetime.date.today().strftime("%d/%m/%Y")
                     })
                     sauvegarder_desistements(st.session_state.desistements)
-                    st.success("✅ Votre demande a été envoyée aux administrateurs. Vous serez retiré après validation.")
+                    st.success("✅ Votre demande a été envoyée aux administrateurs.")
 
-# --- PAGE ECOLES ---
+# --- ECOLES ---
 elif st.session_state.page_active == "Ecoles":
-    st.subheader("🏫 Écoles de descentes")
+    st.subheader("🏫 Écoles de descentes (Triées par ordre alphabétique)")
     if not st.session_state.ecoles_cibles:
         st.info("Aucune école enregistrée.")
     else:
-        for i, e in enumerate(st.session_state.ecoles_cibles, 1):
+        for i, e in enumerate(sorted(st.session_state.ecoles_cibles, key=lambda x: x.lower()), 1):
             st.markdown(f'<div class="event-card"><b>{i}. {e}</b></div>', unsafe_allow_html=True)
 
-# --- PAGE STANDS ---
+# --- STANDS ---
 elif st.session_state.page_active == "Stands":
-    st.subheader("⛺ Stands de sensibilisation")
+    st.subheader("⛺ Stands de sensibilisation (Triés par ordre alphabétique)")
     if not st.session_state.stands_cibles:
         st.info("Aucun stand enregistré.")
     else:
-        for i, s in enumerate(st.session_state.stands_cibles, 1):
+        for i, s in enumerate(sorted(st.session_state.stands_cibles, key=lambda x: x.lower()), 1):
             st.markdown(f'<div class="event-card"><b>{i}. {s}</b></div>', unsafe_allow_html=True)
 
-# --- PAGE ADMIN ---
+# --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     st.subheader("⚙️ Zone d'Administration")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📅 Planifier (Grps de 5)", "👥 Volontaires & Suppression", "🚑 Demandes Feu Vert", "🏫/⛺ Lieux"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📅 Planifier (Grps de 5)", "👥 Volontaires & Suppression", "🚦 Demandes Feu Vert", "🏫/⛺ Lieux"])
 
-    # 1. PLANIFICATION PAR DATES ET GROUPS DE 5
+    # 1. PLANIFICATION
     with tab1:
         st.markdown("### Créer un créneau de descente")
         p_type = st.radio("Type de mission :", ["École", "Stand"], horizontal=True)
-        lieux = st.session_state.ecoles_cibles if p_type == "École" else st.session_state.stands_cibles
+        lieux = sorted(st.session_state.ecoles_cibles if p_type == "École" else st.session_state.stands_cibles, key=lambda x: x.lower())
 
         with st.form("form_p"):
             date_choisie = st.date_input("Date exacte de la descente :", datetime.date.today())
             date_formatee = date_choisie.strftime("%A %d %B %Y").capitalize()
-            
             st.info(f"📆 Date sélectionnée : **{date_formatee}**")
 
             c_h1, c_h2 = st.columns(2)
@@ -372,7 +378,9 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             with c_q: p_quartier = st.text_input("Quartier :")
             with c_a: p_arrondissement = st.text_input("Arrondissement :")
 
-            noms = [f"{c['nom']} ({c.get('statut_filiere', 'L1')})" for c in st.session_state.candidats]
+            # Volontaires triés alphabétiquement
+            candidats_sorted = sorted(st.session_state.candidats, key=lambda x: x.get("nom", "").lower())
+            noms = [f"{c['nom']} ({c.get('statut_filiere', 'L1')})" for c in candidats_sorted]
             p_groupe = st.multiselect("Volontaires affectés (MAXIMUM 5) :", noms, max_selections=5)
 
             if st.form_submit_button("Ajouter au planning"):
@@ -396,7 +404,13 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         st.markdown("---")
         st.markdown("### Supprimer une descente planifiée")
         if st.session_state.planning:
-            opts = [f"{i+1}. {p['date_mission']} | {p['type_mission']} : {p['lieu']}" for i, p in enumerate(st.session_state.planning)]
+            opts = []
+            for i, p in enumerate(st.session_state.planning):
+                d_val = p.get("date_mission", p.get("jour", "Date inconnue"))
+                t_val = p.get("type_mission", "Mission")
+                l_val = p.get("lieu", "Lieu inconnu")
+                opts.append(f"{i+1}. {d_val} | {t_val} : {l_val}")
+
             idx_del = st.selectbox("Sélectionner le créneau à annuler :", range(len(opts)), format_func=lambda x: opts[x])
             if st.button("🗑️ Annuler ce créneau"):
                 st.session_state.planning.pop(idx_del)
@@ -404,23 +418,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 st.success("Créneau supprimé du planning.")
                 st.rerun()
 
-    # 2. GESTION DES VOLONTAIRES & RETRAIT PAR L'ADMIN
+    # 2. VOLONTAIRES ET SUPPRESSION (Trier par ordre alphabétique)
     with tab2:
-        st.markdown("### Liste Générale des Volontaires")
-        if st.session_state.candidats:
-            df_cand = pd.DataFrame(st.session_state.candidats)
-            st.dataframe(df_cand, use_container_width=True)
-
-            st.markdown("---")
-            st.markdown("### 🚫 Retirer un volontaire du recrutement")
-            noms_volontaires = [c["nom"] for c in st.session_state.candidats]
-            vol_a_retirer = st.selectbox("Sélectionner le volontaire à exclure/retirer :", noms_volontaires)
-            
-            if st.button("🚨 Confirmer le retrait du volontaire"):
-                # Retrait de la liste candidats
-                st.session_state.candidats = [c for c in st.session_state.candidats if c["nom"] != vol_a_retirer]
-                sauvegarder_candidats(st.session_state.candidats)
-                
-                # Retrait des plannings
-                for p in st.session_state.planning:
-                    membres = [m.strip() for m in p["groupe"].split(",")]
+        st.markdown("### Liste des Volontaires (Ordre Alphabétique)")
+        st.session_state.candidats = sorted(st.session_state.candidats,
