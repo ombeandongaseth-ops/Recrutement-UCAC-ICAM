@@ -186,7 +186,7 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# STYLES CSS SUR MESURE D'ORIGINE
+# STYLES CSS SUR MESURE
 # ---------------------------------------------------------
 st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
 
@@ -205,7 +205,7 @@ st.markdown(
     
     #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
 
-    /* Boutons de navigation principaux */
+    /* Positionnement et style des boutons de navigation */
     div.stButton > button {{
         width: 100% !important;
         height: 50px !important;
@@ -224,7 +224,7 @@ st.markdown(
         color: #FFFFFF !important;
     }}
     
-    /* Boîte profil compacte et ajustée */
+    /* Profil déroulant compact */
     .compact-profile-box {{
         background-color: #FFFFFF;
         color: #212529;
@@ -246,7 +246,7 @@ st.markdown(
         text-overflow: ellipsis;
     }}
     
-    /* Cartes de contenu */
+    /* Cartes de planning et événements */
     .event-card {{
         background-color: rgba(28, 32, 38, 0.85);
         color: #FFFFFF;
@@ -296,7 +296,7 @@ if "tirage_temp_l1" not in st.session_state:
     st.session_state.tirage_temp_l1 = []
 
 # ---------------------------------------------------------
-# CONNEXION INITIALE
+# PAGE DE CONNEXION INITIALE
 # ---------------------------------------------------------
 if not st.session_state.user_email:
     st.title("Recrutement UCAC-ICAM")
@@ -317,11 +317,11 @@ if not st.session_state.user_email:
                     st.rerun()
     st.stop()
 
-# Actualisation automatique de la présence
+# Suivi de la présence en direct
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# EN-TÊTE & BOUTON PROFIL COMPACT
+# EN-TÊTE PRINCIPAL ET BOUTON PROFIL
 # ---------------------------------------------------------
 premiere_lettre = st.session_state.user_email[0].upper() if st.session_state.user_email else "U"
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
@@ -343,7 +343,7 @@ with col_user_corner:
             st.session_state.page_active = "Admin"
             st.rerun()
 
-# Menu déroulant Profil RÉDUIT ET COMPACT
+# Menu déroulant Profil
 if st.session_state.show_profile_menu:
     col_l, col_pop = st.columns([7, 3])
     with col_pop:
@@ -365,21 +365,25 @@ if st.session_state.show_profile_menu:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# NAVIGATION PAR BOUTONS ALIGNÉS
+# EMPLACEMENT DES BOUTONS DE NAVIGATION
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
+
 with nav_cols[0]:
     if st.button("📝 Inscription / Profil", key="nav_inscrire"):
         st.session_state.page_active = "Inscription"
         st.rerun()
+
 with nav_cols[1]:
     if st.button("📅 Planning des descentes", key="nav_planning"):
         st.session_state.page_active = "Accueil"
         st.rerun()
+
 with nav_cols[2]:
     if st.button("🏫 Écoles de descentes", key="nav_ecoles"):
         st.session_state.page_active = "Ecoles"
         st.rerun()
+
 with nav_cols[3]:
     if st.button("⛺ Stands de sensibilisation", key="nav_stands"):
         st.session_state.page_active = "Stands"
