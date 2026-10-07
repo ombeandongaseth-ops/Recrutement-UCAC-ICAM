@@ -186,7 +186,7 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# CONFIGURATION & STYLE RECRUTEMENT UCAC-ICAM
+# STYLES CSS SUR MESURE
 # ---------------------------------------------------------
 st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
 
@@ -205,16 +205,16 @@ st.markdown(
     
     #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
 
-    /* Boutons de navigation */
+    /* Boutons de navigation (Disposition Image 1) */
     div.stButton > button {{
         width: 100% !important;
-        height: 46px !important;
+        height: 52px !important;
         font-size: 14px !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
         background-color: rgba(28, 32, 38, 0.85) !important;
         color: #FFFFFF !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
         backdrop-filter: blur(8px);
         transition: all 0.2s ease-in-out !important;
     }}
@@ -224,24 +224,24 @@ st.markdown(
         color: #FFFFFF !important;
     }}
     
-    /* Menu déroulant profil */
-    .profile-popup-box {{
+    /* Menu déroulant style Moodle */
+    .moodle-profile-box {{
         background-color: #FFFFFF;
         color: #212529;
-        border-radius: 8px;
+        border-radius: 4px;
         padding: 8px 0;
         box-shadow: 0px 4px 16px rgba(0,0,0,0.3);
         font-size: 14px;
-        border: 1px solid #DEE2E6;
+        border: 1px solid #CCCCCC;
     }}
-    .profile-menu-item {{
+    .moodle-item {{
         padding: 8px 16px;
-        color: #212529;
-        border-bottom: 1px solid #F1F3F5;
+        color: #333333;
+        border-bottom: 1px solid #E9ECEF;
         font-size: 13px;
     }}
     
-    /* Cartes de contenu */
+    /* Cartes d'affichage des créneaux */
     .event-card {{
         background-color: rgba(28, 32, 38, 0.85);
         color: #FFFFFF;
@@ -250,20 +250,6 @@ st.markdown(
         margin-bottom: 12px;
         border-left: 4px solid #1B72E8;
         backdrop-filter: blur(5px);
-    }}
-    
-    .hero-title {{
-        text-align: center;
-        margin: 20px 0 5px 0;
-        font-size: 36px;
-        font-weight: bold;
-        color: #FFFFFF;
-    }}
-    .hero-sub {{
-        text-align: center;
-        font-size: 15px;
-        color: #CBD5E1;
-        margin-bottom: 25px;
     }}
     
     .online-badge {{
@@ -309,7 +295,7 @@ if "tirage_temp_l1" not in st.session_state:
 # ---------------------------------------------------------
 if not st.session_state.user_email:
     st.title("Recrutement UCAC-ICAM")
-    st.markdown('<div class="hero-sub">👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM</div>', unsafe_allow_html=True)
+    st.markdown("##### 👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM")
     
     c_m1, col_box, c_m2 = st.columns([1, 2, 1])
     with col_box:
@@ -330,22 +316,22 @@ if not st.session_state.user_email:
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# BARRE SUPÉRIEURE ET PROFIL DANS LE COIN SUPÉRIEUR DROIT
+# EN-TÊTE & BOUTON PROFIL STYLE MOODLE (PREMIÈRE LETTRE DU COMPTE)
 # ---------------------------------------------------------
+# Première lettre de l'adresse e-mail (ex: "N" pour ninon...)
+premiere_lettre = st.session_state.user_email[0].upper() if st.session_state.user_email else "U"
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
-part_names = user_prefix.split()
-initiales = (part_names[0][0] + part_names[1][0]).upper() if len(part_names) >= 2 else user_prefix[:2].upper()
 
-col_brand, col_space, col_user_corner = st.columns([5, 2, 3])
+col_title, col_space, col_user_corner = st.columns([6, 1, 3])
 
-with col_brand:
+with col_title:
     st.title("Recrutement UCAC-ICAM")
 
 with col_user_corner:
     c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user_corner, None)
     
-    # Bouton de profil situé tout en haut à droite
-    if c_btn_prof.button(f"👤 {user_prefix} [{initiales}] ▾", key="top_profile_btn", help="Profil / Option"):
+    # Bouton profil représenté par la première lettre du compte (ex: [ N ])
+    if c_btn_prof.button(f"⚪ {premiere_lettre} ▾", key="top_moodle_profile_btn", help="Mon Compte / Profil"):
         st.session_state.show_profile_menu = not st.session_state.show_profile_menu
         st.rerun()
         
@@ -354,30 +340,36 @@ with col_user_corner:
             st.session_state.page_active = "Admin"
             st.rerun()
 
-# Menu déroulant contextuel du profil
+# Menu déroulant Profil Style Moodle (Image 3)
 if st.session_state.show_profile_menu:
     col_l, col_pop = st.columns([6, 4])
     with col_pop:
         st.markdown(
             f"""
-            <div class="profile-popup-box">
-                <div class="profile-menu-item"><b>👤 {user_prefix}</b></div>
-                <div class="profile-menu-item">📧 {st.session_state.user_email}</div>
-                <div class="profile-menu-item">🎓 Statut : {'Admin' if st.session_state.is_admin else 'Volontaire / Apprenant'}</div>
-                <div class="profile-menu-item">🌐 Langue : Français</div>
+            <div class="moodle-profile-box">
+                <div class="moodle-item"><b>👤 {user_prefix}</b></div>
+                <div class="moodle-item">📧 {st.session_state.user_email}</div>
+                <div class="moodle-item">🎓 Profil</div>
+                <div class="moodle-item">📊 Notes</div>
+                <div class="moodle-item">📅 Calendrier</div>
+                <div class="moodle-item">📁 Fichiers personnels</div>
+                <div class="moodle-item">⚙️ Préférences</div>
+                <div class="moodle-item">🌐 Langue (Français)</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("🚪 Déconnexion", key="btn_logout_confirm"):
+        if st.button("🔴 Déconnexion", key="btn_moodle_logout"):
             st.session_state.user_email = None
             st.session_state.is_admin = False
             st.session_state.show_profile_menu = False
             st.rerun()
 
-st.markdown("---")
+st.markdown("<br>", unsafe_allow_html=True)
 
-# Barre de navigation
+# ---------------------------------------------------------
+# BOUTONS DE NAVIGATION (DISPOSÉS DANS UNE GRILLE COMME L'IMAGE 1 & 2)
+# ---------------------------------------------------------
 nav_cols = st.columns(4)
 with nav_cols[0]:
     if st.button("📝 Inscription / Profil", key="nav_inscrire"):
