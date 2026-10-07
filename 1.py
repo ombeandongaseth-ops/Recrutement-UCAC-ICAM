@@ -224,22 +224,26 @@ st.markdown(
         color: #FFFFFF !important;
     }}
     
-    /* Boîte profil épurée */
-    .simple-profile-box {{
+    /* Boîte profil compacte et ajustée */
+    .compact-profile-box {{
         background-color: #FFFFFF;
         color: #212529;
         border-radius: 8px;
-        padding: 12px 16px;
+        padding: 10px 14px;
         box-shadow: 0px 4px 16px rgba(0,0,0,0.3);
-        font-size: 14px;
+        font-size: 13px;
         border: 1px solid #CCCCCC;
-        margin-bottom: 10px;
+        max-width: 320px;
+        margin-left: auto;
     }}
     .profile-info-line {{
-        padding: 6px 0;
+        padding: 5px 0;
         color: #333333;
-        border-bottom: 1px solid #F1F3F5;
-        font-size: 13px;
+        border-bottom: 1px solid #E9ECEF;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }}
     
     /* Cartes de contenu */
@@ -317,7 +321,7 @@ if not st.session_state.user_email:
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# EN-TÊTE & BOUTON PROFIL (PREMIÈRE LETTRE DANS LE COIN SUPÉRIEUR DROIT)
+# EN-TÊTE & BOUTON PROFIL COMPACT
 # ---------------------------------------------------------
 premiere_lettre = st.session_state.user_email[0].upper() if st.session_state.user_email else "U"
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
@@ -339,13 +343,13 @@ with col_user_corner:
             st.session_state.page_active = "Admin"
             st.rerun()
 
-# Menu déroulant Profil ÉPURÉ (Uniquement informations utiles + Déconnexion)
+# Menu déroulant Profil RÉDUIT ET COMPACT
 if st.session_state.show_profile_menu:
-    col_l, col_pop = st.columns([6, 4])
+    col_l, col_pop = st.columns([7, 3])
     with col_pop:
         st.markdown(
             f"""
-            <div class="simple-profile-box">
+            <div class="compact-profile-box">
                 <div class="profile-info-line">👤 <b>{user_prefix}</b></div>
                 <div class="profile-info-line">📧 {st.session_state.user_email}</div>
             </div>
