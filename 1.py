@@ -38,6 +38,26 @@ JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(7, 19)]
 
 # ---------------------------------------------------------
+# CACHING DE L'IMAGE D'ARRIÈRE-PLAN
+# ---------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def Obtenir_bg_base64():
+    image_path = None
+    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
+        if os.path.exists(ext):
+            image_path = ext
+            break
+    if image_path:
+        try:
+            with open(image_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode()
+                mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
+                return f"data:{mime};base64,{encoded}"
+        except Exception:
+            return None
+    return None
+
+# ---------------------------------------------------------
 # FONCTIONS DE PERSISTANCE CSV & PRÉSENCE
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
@@ -125,7 +145,6 @@ def sauvegarder_desistements(desistements):
         writer.writerows(desistements_tries)
 
 def mettre_a_jour_presence(email):
-    """Met à jour l'horodatage de l'utilisateur."""
     if not email:
         return
     maintenant = time.time()
@@ -152,7 +171,6 @@ def mettre_a_jour_presence(email):
             pass
 
 def obtenir_utilisateurs_en_ligne():
-    """Renvoie la liste des utilisateurs actifs ces 5 dernières minutes."""
     if not os.path.exists(FICHIER_PRESENCE):
         return []
     maintenant = time.time()
@@ -168,102 +186,112 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# CONFIGURATION ET THÈME STYLISÉ (UCAC-ICAM & MOODLE)
+# CONFIGURATION ET THÈME EXACT MOODLE ICAM AFRIQUE
 # ---------------------------------------------------------
-st.set_page_config(page_title="UCAC-ICAM — Recrutement", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="MOODLE EXAMEN ICAM AFRIQUE", page_icon="🎓", layout="wide")
 
-# CSS personnalisé pour reproduire la charte graphique UCAC-ICAM (Rouge Bordeau / Moodle)
+bg_data = Obtenir_bg_base64()
+bg_css = f"""
+.stApp {{
+    background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.65)), url("{bg_data}");
+    background-size: cover; background-position: center; background-attachment: fixed; color: #FFFFFF;
+}}
+""" if bg_data else ".stApp { background-color: #121417; color: #FFFFFF; }"
+
 st.markdown(
-    """
+    f"""
     <style>
-    /* Style général */
-    .stApp {
-        background-color: #F8F9FA;
-        color: #212529;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
+    {bg_css}
     
-    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-    
-    /* Barre supérieure style UCAC-ICAM rouge */
-    .ucac-header {
-        background-color: #8B0000;
-        background: linear-gradient(90deg, #8B0000 0%, #A6192E 100%);
-        padding: 12px 25px;
+    #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
+
+    /* Barre supérieure de Moodle couleur violette (#8F2D8A / #7D2278) */
+    .moodle-navbar {{
+        background-color: #8F2D8A;
+        padding: 10px 20px;
         color: white;
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        border-bottom: 3px solid #660000;
-        border-radius: 0 0 8px 8px;
+        align-items: center;
+        border-bottom: 1px solid #73226F;
         margin-bottom: 20px;
-    }
-    
-    .ucac-logo-text {
-        font-size: 22px;
-        font-weight: 800;
+    }}
+    .moodle-brand {{
+        font-size: 18px;
+        font-weight: bold;
+        line-height: 1.2;
         letter-spacing: 0.5px;
+        text-transform: uppercase;
         color: #FFFFFF;
-    }
-    .ucac-subtitle {
-        font-size: 13px;
-        color: #FFCCCC;
-        margin-top: -2px;
-    }
-
-    /* Cartes d'affichage style UCAC */
-    .event-card {
-        background-color: #FFFFFF;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 14px;
-        border-left: 5px solid #A6192E;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-    }
+    }}
     
-    .banner-red {
-        background: linear-gradient(135deg, #A6192E 0%, #8B0000 100%);
-        border-radius: 8px;
-        padding: 25px;
-        color: white;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 12px rgba(166, 25, 46, 0.2);
-    }
-
-    /* Modificateurs de boutons navigation */
-    div.stButton > button {
+    /* Boutons de navigation style Moodle */
+    div.stButton > button {{
         width: 100% !important;
-        height: 46px !important;
+        height: 42px !important;
         font-size: 14px !important;
-        font-weight: 600 !important;
-        border-radius: 6px !important;
-        background-color: #A6192E !important;
+        font-weight: 500 !important;
+        border-radius: 4px !important;
+        background-color: rgba(255, 255, 255, 0.15) !important;
         color: #FFFFFF !important;
-        border: none !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        backdrop-filter: blur(5px);
         transition: all 0.2s ease-in-out !important;
-    }
-    div.stButton > button:hover {
-        background-color: #8B0000 !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    }
+    }}
+    div.stButton > button:hover {{
+        background-color: #8F2D8A !important;
+        border-color: #8F2D8A !important;
+        color: #FFFFFF !important;
+    }}
     
-    /* Menu déroulant profil style Moodle */
-    .moodle-profile-box {
+    /* Menu déroulant profil Moodle (comme Image 1) */
+    .moodle-popup-menu {{
         background-color: #FFFFFF;
-        border: 1px solid #DEE2E6;
-        border-radius: 6px;
-        padding: 12px 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        margin-bottom: 15px;
-    }
-    .moodle-item {
-        padding: 6px 0;
         color: #333333;
+        border-radius: 4px;
+        padding: 10px 0px;
+        box-shadow: 0px 4px 16px rgba(0,0,0,0.25);
         font-size: 14px;
-        border-bottom: 1px solid #F0F0F0;
-    }
+        border: 1px solid #CCCCCC;
+    }}
+    .moodle-menu-link {{
+        padding: 8px 18px;
+        color: #333333;
+        border-bottom: 1px solid #E9ECEF;
+        font-size: 13px;
+    }}
+    .moodle-menu-link:hover {{
+        background-color: #F8F9FA;
+    }}
     
-    .online-badge {
+    /* Cartes de contenu */
+    .moodle-card {{
+        background-color: rgba(255, 255, 255, 0.92);
+        color: #212529;
+        border-radius: 6px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        border-left: 5px solid #8F2D8A;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }}
+    
+    .hero-title {{
+        text-align: center;
+        margin: 30px 0 10px 0;
+        font-size: 38px;
+        font-weight: bold;
+        color: #FFFFFF;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+    }}
+    .hero-sub {{
+        text-align: center;
+        font-size: 16px;
+        color: #E2E8F0;
+        margin-bottom: 25px;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }}
+    
+    .online-badge {{
         display: inline-block;
         background-color: #10B981;
         color: white;
@@ -271,7 +299,7 @@ st.markdown(
         border-radius: 12px;
         font-size: 11px;
         font-weight: bold;
-    }
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -302,104 +330,115 @@ if "tirage_temp_l1" not in st.session_state:
     st.session_state.tirage_temp_l1 = []
 
 # ---------------------------------------------------------
-# CONNEXION INITIALE (PAGE DE BIENVENUE)
+# PAGE DE CONNEXION INITIALE (STYLE MOODLE)
 # ---------------------------------------------------------
 if not st.session_state.user_email:
     st.markdown(
         """
-        <div class="ucac-header">
-            <div>
-                <div class="ucac-logo-text">🎓 INSTITUT UCAC-ICAM</div>
-                <div class="ucac-subtitle">Portail Officiel de Recrutement</div>
-            </div>
+        <div class="moodle-navbar">
+            <div class="moodle-brand">MOODLE EXAMEN ICAM AFRIQUE</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    
+    st.markdown('<div class="hero-title">Moodle Examen Icam Afrique</div>', unsafe_allow_html=True)
     st.markdown(
-        """
-        <div class="banner-red" style="text-align: center;">
-            <h2 style="margin:0; color:white;">👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM</h2>
-            <p style="margin-top:10px; font-size:15px; color:#FFE6E6;">Entrez votre adresse e-mail institutionnelle pour accéder à la plateforme.</p>
-        </div>
-        """,
+        '<div class="hero-sub">Welcome to the Online Course & Recruitment Platform of Icam Campuses in Africa (Ucac-Icam, Ulc-Icam)</div>',
         unsafe_allow_html=True,
     )
-    with st.form("login_form"):
-        email_input = st.text_input("Adresse e-mail :", placeholder="exemple@ucac-icam.com").strip().lower()
-        if st.form_submit_button("Se connecter"):
-            if not email_input or "@" not in email_input:
-                st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
-            else:
-                st.session_state.user_email = email_input
-                st.session_state.is_admin = email_input in [e.lower() for e in ADMIN_EMAILS]
-                mettre_a_jour_presence(email_input)
-                st.rerun()
+    
+    c_m1, col_box, c_m2 = st.columns([1, 2, 1])
+    with col_box:
+        with st.form("login_form"):
+            st.markdown("#### 🔑 Connexion au Portail")
+            email_input = st.text_input("Adresse e-mail :", placeholder="votre.nom@ucac-icam.com").strip().lower()
+            if st.form_submit_button("Access"):
+                if not email_input or "@" not in email_input:
+                    st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
+                else:
+                    st.session_state.user_email = email_input
+                    st.session_state.is_admin = email_input in [e.lower() for e in ADMIN_EMAILS]
+                    mettre_a_jour_presence(email_input)
+                    st.rerun()
     st.stop()
 
 # Actualisation automatique de la présence
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# EN-TÊTE UCAC-ICAM ET MENU PROFIL STYLE MOODLE
+# BARRE SUPÉRIEURE MOODLE + MENUS DU COIN SUPÉRIEUR DROIT
 # ---------------------------------------------------------
-# Extraction de l'initiale pour le macaron de profil (ex: "ON" ou "N")
+# Calcul des initiales pour la pastille utilisateur (ex: "ON")
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
-initiales = "".join([part[0].upper() for part in user_prefix.split()[:2]]) if user_prefix else "U"
+part_names = user_prefix.split()
+initiales = (part_names[0][0] + part_names[1][0]).upper() if len(part_names) >= 2 else user_prefix[:2].upper()
 
-st.markdown(
-    f"""
-    <div class="ucac-header">
-        <div>
-            <div class="ucac-logo-text">UCAC-ICAM</div>
-            <div class="ucac-subtitle">Plateforme de Recrutement & Campagne</div>
-        </div>
-        <div style="font-size: 14px; font-weight: 600;">
-            PORTAIL APPRENANTS & ADMINISTRATION
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+col_brand, col_nav_links, col_user_corner = st.columns([4, 3, 3])
 
-# En-tête avec bouton profil style Moodle / ICAM (Images 1 & 2)
-col_title, col_space, col_user = st.columns([5, 2, 3])
-with col_title:
-    st.markdown(f"### 📍 Espace Recrutement — `{st.session_state.user_email}`")
-
-with col_user:
-    c_prof, c_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user, None)
-    
-    # Bouton de profil style Moodle avec bulle d'initiales
-    if c_prof.button(f"👤 {user_prefix} [{initiales}] ▾", key="btn_moodle_profile"):
-        st.session_state.show_profile_menu = not st.session_state.show_profile_menu
-        st.rerun()
-        
-    if st.session_state.is_admin and c_gear:
-        if c_gear.button("⚙️", key="btn_admin_gear", help="Administration"):
-            st.session_state.page_active = "Admin"
-            st.rerun()
-
-# Menu déroulant Profil style Moodle (Image 1)
-if st.session_state.show_profile_menu:
+with col_brand:
     st.markdown(
-        f"""
-        <div class="moodle-profile-box">
-            <div class="moodle-item"><b>👤 {user_prefix}</b></div>
-            <div class="moodle-item">📧 <i>{st.session_state.user_email}</i></div>
-            <div class="moodle-item">🎓 Statut : {'Administrateur' if st.session_state.is_admin else 'Volontaire / Apprenant'}</div>
-            <div class="moodle-item">🌐 Langue : Français</div>
+        """
+        <div style="background-color:#8F2D8A; padding:8px 15px; border-radius:4px; font-weight:bold; color:white; font-size:16px;">
+            MOODLE EXAMEN ICAM AFRIQUE
         </div>
         """,
         unsafe_allow_html=True,
     )
-    if st.button("🚪 Déconnexion", key="btn_logout_moodle"):
-        st.session_state.user_email = None
-        st.session_state.is_admin = False
-        st.session_state.show_profile_menu = False
-        st.rerun()
 
-# Barre de navigation principale
+with col_nav_links:
+    st.markdown(
+        """
+        <div style="display:flex; gap:15px; padding-top:8px; font-size:14px; font-weight:500;">
+            <span style="color:white; cursor:pointer;">Accueil</span>
+            <span style="color:#E2E8F0; cursor:pointer;">Tableau de bord</span>
+            <span style="color:#E2E8F0; cursor:pointer;">Mes cours</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with col_user_corner:
+    c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user_corner, None)
+    
+    # Bouton profil dans le coin supérieur droit (Pastille style Moodle ON)
+    if c_btn_prof.button(f"⚪ {initiales} ▾", key="moodle_top_profile_btn", help="Profil utilisateur"):
+        st.session_state.show_profile_menu = not st.session_state.show_profile_menu
+        st.rerun()
+        
+    if st.session_state.is_admin and c_btn_gear:
+        if c_btn_gear.button("⚙️", key="btn_admin_gear", help="Zone Admin"):
+            st.session_state.page_active = "Admin"
+            st.rerun()
+
+# Menu déroulant contextuel Profil Moodle (Image 1)
+if st.session_state.show_profile_menu:
+    col_l, col_pop = st.columns([6, 4])
+    with col_pop:
+        st.markdown(
+            f"""
+            <div class="moodle-popup-menu">
+                <div class="moodle-menu-link"><b>👤 {user_prefix}</b></div>
+                <div class="moodle-menu-link">📧 {st.session_state.user_email}</div>
+                <div class="moodle-menu-link">🎓 Profil</div>
+                <div class="moodle-menu-link">📊 Notes</div>
+                <div class="moodle-menu-link">📅 Calendrier</div>
+                <div class="moodle-menu-link">📁 Fichiers personnels</div>
+                <div class="moodle-menu-link">⚙️ Préférences</div>
+                <div class="moodle-menu-link">🌐 Langue (Français)</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("🔴 Déconnexion", key="btn_moodle_logout_confirm"):
+            st.session_state.user_email = None
+            st.session_state.is_admin = False
+            st.session_state.show_profile_menu = False
+            st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Barre d'onglets de navigation
 nav_cols = st.columns(4)
 with nav_cols[0]:
     if st.button("📝 Inscription / Profil", key="nav_inscrire"):
@@ -426,15 +465,8 @@ st.markdown("---")
 
 # --- ACCUEIL / PLANNING ---
 if st.session_state.page_active == "Accueil":
-    st.markdown(
-        """
-        <div class="banner-red">
-            <h4 style="margin:0; color:white;">📅 Planning Officiel des Descentes Terrain</h4>
-            <p style="margin-top:6px; color:#FFE6E6; font-size:14px;">Retrouvez les équipes constituées (3 Étudiants L1/CP/BP + 2 Encadrants/Aînés) classées par date de sortie.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="hero-title">Moodle Examen Icam Afrique</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">Planning Officiel des Descentes de Sensibilisation & Recrutement</div>', unsafe_allow_html=True)
 
     df_plan = pd.DataFrame(st.session_state.planning)
     if df_plan.empty:
@@ -444,7 +476,7 @@ if st.session_state.page_active == "Accueil":
         dates_uniques = df_plan[col_date].unique()
         for d in dates_uniques:
             st.markdown(
-                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#A6192E;">📅 {d}</div>',
+                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#FFD700;">📅 {d}</div>',
                 unsafe_allow_html=True,
             )
             items_d = df_plan[df_plan[col_date] == d]
@@ -461,10 +493,10 @@ if st.session_state.page_active == "Accueil":
 
                 st.markdown(
                     f"""
-                    <div class="event-card">
-                        <div style="font-weight:bold; font-size:16px; color:#A6192E;">{icon} {row.get('lieu', '')}</div>
-                        <div style="color:#666666; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
-                        <div style="color:#212529; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
+                    <div class="moodle-card">
+                        <div style="font-weight:bold; font-size:16px; color:#8F2D8A;">{icon} {row.get('lieu', '')}</div>
+                        <div style="color:#555555; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
+                        <div style="color:#111111; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -530,7 +562,7 @@ elif st.session_state.page_active == "Ecoles":
         st.info("Aucune école enregistrée.")
     else:
         for i, e in enumerate(sorted(st.session_state.ecoles_cibles, key=lambda x: x.lower()), 1):
-            st.markdown(f'<div class="event-card"><b>{i}. {e}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="moodle-card"><b>{i}. {e}</b></div>', unsafe_allow_html=True)
 
 # --- STANDS ---
 elif st.session_state.page_active == "Stands":
@@ -539,7 +571,7 @@ elif st.session_state.page_active == "Stands":
         st.info("Aucun stand enregistré.")
     else:
         for i, s in enumerate(sorted(st.session_state.stands_cibles, key=lambda x: x.lower()), 1):
-            st.markdown(f'<div class="event-card"><b>{i}. {s}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="moodle-card"><b>{i}. {s}</b></div>', unsafe_allow_html=True)
 
 # --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
@@ -783,4 +815,4 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
 
 # Pied de page
 st.markdown("---")
-st.caption("© Institut UCAC-ICAM — Plateforme de Recrutement")
+st.caption("© MOODLE EXAMEN ICAM AFRIQUE — Institut UCAC-ICAM")
