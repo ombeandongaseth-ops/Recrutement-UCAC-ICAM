@@ -205,10 +205,10 @@ st.markdown(
     
     #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
 
-    /* Boutons de navigation (Disposition Image 1) */
+    /* Boutons de navigation principaux */
     div.stButton > button {{
         width: 100% !important;
-        height: 52px !important;
+        height: 50px !important;
         font-size: 14px !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
@@ -224,24 +224,25 @@ st.markdown(
         color: #FFFFFF !important;
     }}
     
-    /* Menu déroulant style Moodle */
-    .moodle-profile-box {{
+    /* Boîte profil épurée */
+    .simple-profile-box {{
         background-color: #FFFFFF;
         color: #212529;
-        border-radius: 4px;
-        padding: 8px 0;
+        border-radius: 8px;
+        padding: 12px 16px;
         box-shadow: 0px 4px 16px rgba(0,0,0,0.3);
         font-size: 14px;
         border: 1px solid #CCCCCC;
+        margin-bottom: 10px;
     }}
-    .moodle-item {{
-        padding: 8px 16px;
+    .profile-info-line {{
+        padding: 6px 0;
         color: #333333;
-        border-bottom: 1px solid #E9ECEF;
+        border-bottom: 1px solid #F1F3F5;
         font-size: 13px;
     }}
     
-    /* Cartes d'affichage des créneaux */
+    /* Cartes de contenu */
     .event-card {{
         background-color: rgba(28, 32, 38, 0.85);
         color: #FFFFFF;
@@ -316,9 +317,8 @@ if not st.session_state.user_email:
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# EN-TÊTE & BOUTON PROFIL STYLE MOODLE (PREMIÈRE LETTRE DU COMPTE)
+# EN-TÊTE & BOUTON PROFIL (PREMIÈRE LETTRE DANS LE COIN SUPÉRIEUR DROIT)
 # ---------------------------------------------------------
-# Première lettre de l'adresse e-mail (ex: "N" pour ninon...)
 premiere_lettre = st.session_state.user_email[0].upper() if st.session_state.user_email else "U"
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
 
@@ -330,8 +330,7 @@ with col_title:
 with col_user_corner:
     c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user_corner, None)
     
-    # Bouton profil représenté par la première lettre du compte (ex: [ N ])
-    if c_btn_prof.button(f"⚪ {premiere_lettre} ▾", key="top_moodle_profile_btn", help="Mon Compte / Profil"):
+    if c_btn_prof.button(f"⚪ {premiere_lettre} ▾", key="top_profile_btn", help="Mon Compte"):
         st.session_state.show_profile_menu = not st.session_state.show_profile_menu
         st.rerun()
         
@@ -340,26 +339,20 @@ with col_user_corner:
             st.session_state.page_active = "Admin"
             st.rerun()
 
-# Menu déroulant Profil Style Moodle (Image 3)
+# Menu déroulant Profil ÉPURÉ (Uniquement informations utiles + Déconnexion)
 if st.session_state.show_profile_menu:
     col_l, col_pop = st.columns([6, 4])
     with col_pop:
         st.markdown(
             f"""
-            <div class="moodle-profile-box">
-                <div class="moodle-item"><b>👤 {user_prefix}</b></div>
-                <div class="moodle-item">📧 {st.session_state.user_email}</div>
-                <div class="moodle-item">🎓 Profil</div>
-                <div class="moodle-item">📊 Notes</div>
-                <div class="moodle-item">📅 Calendrier</div>
-                <div class="moodle-item">📁 Fichiers personnels</div>
-                <div class="moodle-item">⚙️ Préférences</div>
-                <div class="moodle-item">🌐 Langue (Français)</div>
+            <div class="simple-profile-box">
+                <div class="profile-info-line">👤 <b>{user_prefix}</b></div>
+                <div class="profile-info-line">📧 {st.session_state.user_email}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("🔴 Déconnexion", key="btn_moodle_logout"):
+        if st.button("🔴 Déconnexion", key="btn_logout"):
             st.session_state.user_email = None
             st.session_state.is_admin = False
             st.session_state.show_profile_menu = False
@@ -368,7 +361,7 @@ if st.session_state.show_profile_menu:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# BOUTONS DE NAVIGATION (DISPOSÉS DANS UNE GRILLE COMME L'IMAGE 1 & 2)
+# NAVIGATION PAR BOUTONS ALIGNÉS
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 with nav_cols[0]:
