@@ -38,6 +38,26 @@ JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(7, 19)]
 
 # ---------------------------------------------------------
+# CACHING DE L'IMAGE D'ARRIÈRE-PLAN
+# ---------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def Obtenir_bg_base64():
+    image_path = None
+    for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
+        if os.path.exists(ext):
+            image_path = ext
+            break
+    if image_path:
+        try:
+            with open(image_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode()
+                mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
+                return f"data:{mime};base64,{encoded}"
+        except Exception:
+            return None
+    return None
+
+# ---------------------------------------------------------
 # FONCTIONS DE PERSISTANCE CSV & PRÉSENCE
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
@@ -166,98 +186,78 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# STYLES CSS SUR MESURE (STYLE DE LA CAPTURE)
+# STYLES CSS SUR MESURE D'ORIGINE
 # ---------------------------------------------------------
-st.set_page_config(page_title="UCAC-ICAM — Recrutement", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
+
+bg_data = Obtenir_bg_base64()
+bg_css = f"""
+.stApp {{
+    background: linear-gradient(rgba(18, 20, 23, 0.70), rgba(18, 20, 23, 0.85)), url("{bg_data}");
+    background-size: cover; background-position: center; background-attachment: fixed; color: #FFFFFF;
+}}
+""" if bg_data else ".stApp { background-color: #121417; color: #FFFFFF; }"
 
 st.markdown(
-    """
+    f"""
     <style>
-    .stApp {
-        background-color: #F8F9FA !important;
-        color: #212529 !important;
-        font-family: 'Segoe UI', Arial, sans-serif !important;
-    }
+    {bg_css}
+    
+    #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
 
-    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-
-    /* Bandeau supérieur rouge UCAC-ICAM */
-    .ucac-banner {
-        background-color: #9E1B22;
-        color: #FFFFFF;
-        padding: 16px 24px;
-        border-radius: 6px;
-        margin-bottom: 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .ucac-banner h2 {
-        margin: 0;
-        font-weight: 800;
-        color: #FFFFFF;
-        font-size: 24px;
-    }
-    .ucac-banner p {
-        margin: 4px 0 0 0;
-        font-size: 13px;
-        opacity: 0.9;
-    }
-
-    /* Boutons en forme de pilules rouges */
-    div.stButton > button {
+    /* Boutons de navigation principaux */
+    div.stButton > button {{
         width: 100% !important;
-        height: 48px !important;
+        height: 50px !important;
         font-size: 14px !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
-        background-color: #9E1B22 !important;
+        background-color: rgba(28, 32, 38, 0.85) !important;
         color: #FFFFFF !important;
-        border: None !important;
-        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        backdrop-filter: blur(8px);
         transition: all 0.2s ease-in-out !important;
-    }
-    div.stButton > button:hover {
-        background-color: #7A1318 !important;
+    }}
+    div.stButton > button:hover {{
+        background-color: #1B72E8 !important;
+        border-color: #1B72E8 !important;
         color: #FFFFFF !important;
-    }
-
-    /* Style spécifique pour les boutons du menu profil/déconnexion */
-    div.stFormSubmitButton > button {
-        background-color: #9E1B22 !important;
-        color: #FFFFFF !important;
-        border-radius: 8px !important;
-    }
-
-    /* Cartes d'événements et conteneurs */
-    .event-card {
+    }}
+    
+    /* Boîte profil compacte et ajustée */
+    .compact-profile-box {{
         background-color: #FFFFFF;
         color: #212529;
         border-radius: 8px;
+        padding: 10px 14px;
+        box-shadow: 0px 4px 16px rgba(0,0,0,0.3);
+        font-size: 13px;
+        border: 1px solid #CCCCCC;
+        max-width: 320px;
+        margin-left: auto;
+    }}
+    .profile-info-line {{
+        padding: 5px 0;
+        color: #333333;
+        border-bottom: 1px solid #E9ECEF;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    
+    /* Cartes de contenu */
+    .event-card {{
+        background-color: rgba(28, 32, 38, 0.85);
+        color: #FFFFFF;
+        border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 12px;
-        border-left: 5px solid #9E1B22;
-        border-top: 1px solid #E9ECEF;
-        border-right: 1px solid #E9ECEF;
-        border-bottom: 1px solid #E9ECEF;
-        box-shadow: 0px 2px 4px rgba(0,0,0,0.03);
-    }
-
-    .profile-info-card {
-        background-color: #FFFFFF;
-        border: 1px solid #E9ECEF;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 16px;
-    }
-
-    .profile-info-line {
-        padding: 8px 0;
-        border-bottom: 1px solid #F1F3F5;
-        font-size: 13px;
-    }
-
-    .online-badge {
+        border-left: 4px solid #1B72E8;
+        backdrop-filter: blur(5px);
+    }}
+    
+    .online-badge {{
         display: inline-block;
         background-color: #10B981;
         color: white;
@@ -265,7 +265,7 @@ st.markdown(
         border-radius: 12px;
         font-size: 11px;
         font-weight: bold;
-    }
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -299,20 +299,8 @@ if "tirage_temp_l1" not in st.session_state:
 # CONNEXION INITIALE
 # ---------------------------------------------------------
 if not st.session_state.user_email:
-    st.markdown(
-        """
-        <div class="ucac-banner">
-            <div>
-                <h2>UCAC-ICAM</h2>
-                <p>Plateforme de Recrutement & Campagne</p>
-            </div>
-            <div>
-                <b>PORTAIL APPRENANTS & ADMINISTRATION</b>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.title("Recrutement UCAC-ICAM")
+    st.markdown("##### 👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM")
     
     c_m1, col_box, c_m2 = st.columns([1, 2, 1])
     with col_box:
@@ -333,32 +321,20 @@ if not st.session_state.user_email:
 mettre_a_jour_presence(st.session_state.user_email)
 
 # ---------------------------------------------------------
-# BANDEAU D'EN-TÊTE ET ESPACE UTILISATEUR
+# EN-TÊTE & BOUTON PROFIL COMPACT
 # ---------------------------------------------------------
-st.markdown(
-    """
-    <div class="ucac-banner">
-        <div>
-            <h2>UCAC-ICAM</h2>
-            <p>Plateforme de Recrutement & Campagne</p>
-        </div>
-        <div style="font-size: 12px; font-weight: bold; text-align: right;">
-            PORTAIL APPRENANTS & ADMINISTRATION
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
+premiere_lettre = st.session_state.user_email[0].upper() if st.session_state.user_email else "U"
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
 
-col_head_left, col_head_right = st.columns([7, 3])
-with col_head_left:
-    st.markdown(f"### 📍 Espace Recrutement — `{st.session_state.user_email}`")
+col_title, col_space, col_user_corner = st.columns([6, 1, 3])
 
-with col_head_right:
-    c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_head_right, None)
-    if c_btn_prof.button(f"👤 {user_prefix} ▾", key="top_profile_btn"):
+with col_title:
+    st.title("Recrutement UCAC-ICAM")
+
+with col_user_corner:
+    c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user_corner, None)
+    
+    if c_btn_prof.button(f"⚪ {premiere_lettre} ▾", key="top_profile_btn", help="Mon Compte"):
         st.session_state.show_profile_menu = not st.session_state.show_profile_menu
         st.rerun()
         
@@ -367,47 +343,43 @@ with col_head_right:
             st.session_state.page_active = "Admin"
             st.rerun()
 
-# DÉROULANT DES INFORMATIONS DU PROFIL DU COMPTE
+# Menu déroulant Profil RÉDUIT ET COMPACT
 if st.session_state.show_profile_menu:
-    st.markdown(
-        f"""
-        <div class="profile-info-card">
-            <div class="profile-info-line">👤 <b>Utilisateur :</b> {user_prefix}</div>
-            <div class="profile-info-line">📧 <b>E-mail :</b> {st.session_state.user_email}</div>
-            <div class="profile-info-line">🎓 <b>Statut :</b> Volontaire / Apprenant</div>
-            <div class="profile-info-line">🌐 <b>Langue :</b> Français</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("🔴 Déconnexion", key="btn_logout"):
-        st.session_state.user_email = None
-        st.session_state.is_admin = False
-        st.session_state.show_profile_menu = False
-        st.rerun()
+    col_l, col_pop = st.columns([7, 3])
+    with col_pop:
+        st.markdown(
+            f"""
+            <div class="compact-profile-box">
+                <div class="profile-info-line">👤 <b>{user_prefix}</b></div>
+                <div class="profile-info-line">📧 {st.session_state.user_email}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("🔴 Déconnexion", key="btn_logout"):
+            st.session_state.user_email = None
+            st.session_state.is_admin = False
+            st.session_state.show_profile_menu = False
+            st.rerun()
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# BOUTONS DE NAVIGATION DU BAS (ROUGES PILULES D'ORIGINE)
+# NAVIGATION PAR BOUTONS ALIGNÉS
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
-
 with nav_cols[0]:
     if st.button("📝 Inscription / Profil", key="nav_inscrire"):
         st.session_state.page_active = "Inscription"
         st.rerun()
-
 with nav_cols[1]:
     if st.button("📅 Planning des descentes", key="nav_planning"):
         st.session_state.page_active = "Accueil"
         st.rerun()
-
 with nav_cols[2]:
     if st.button("🏫 Écoles de descentes", key="nav_ecoles"):
         st.session_state.page_active = "Ecoles"
         st.rerun()
-
 with nav_cols[3]:
     if st.button("⛺ Stands de sensibilisation", key="nav_stands"):
         st.session_state.page_active = "Stands"
@@ -416,7 +388,7 @@ with nav_cols[3]:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# ACCÈS AUX PAGES DE L'APPLICATION
+# PAGES DE L'APPLICATION
 # ---------------------------------------------------------
 
 # --- ACCUEIL / PLANNING ---
@@ -431,7 +403,7 @@ if st.session_state.page_active == "Accueil":
         dates_uniques = df_plan[col_date].unique()
         for d in dates_uniques:
             st.markdown(
-                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#9E1B22;">📅 {d}</div>',
+                f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#60A5FA;">📅 {d}</div>',
                 unsafe_allow_html=True,
             )
             items_d = df_plan[df_plan[col_date] == d]
@@ -449,9 +421,9 @@ if st.session_state.page_active == "Accueil":
                 st.markdown(
                     f"""
                     <div class="event-card">
-                        <div style="font-weight:bold; font-size:16px; color:#9E1B22;">{icon} {row.get('lieu', '')}</div>
-                        <div style="color:#666666; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
-                        <div style="color:#333333; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
+                        <div style="font-weight:bold; font-size:16px;">{icon} {row.get('lieu', '')}</div>
+                        <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {horaire}{quartier_info}</div>
+                        <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {row.get('groupe', '')}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -512,7 +484,7 @@ elif st.session_state.page_active == "Inscription":
 
 # --- ECOLES ---
 elif st.session_state.page_active == "Ecoles":
-    st.subheader("🏫 Écoles de descentes")
+    st.subheader("🏫 Écoles de descentes (Triées par ordre alphabétique)")
     if not st.session_state.ecoles_cibles:
         st.info("Aucune école enregistrée.")
     else:
@@ -521,7 +493,7 @@ elif st.session_state.page_active == "Ecoles":
 
 # --- STANDS ---
 elif st.session_state.page_active == "Stands":
-    st.subheader("⛺ Stands de sensibilisation")
+    st.subheader("⛺ Stands de sensibilisation (Triés par ordre alphabétique)")
     if not st.session_state.stands_cibles:
         st.info("Aucun stand enregistré.")
     else:
@@ -662,8 +634,8 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             for user in connectes:
                 st.markdown(
                     f"""
-                    <div style="background-color: #E8F5E9; border: 1px solid #C8E6C9; 
-                         border-radius: 6px; padding: 10px 15px; margin-bottom: 8px; display: flex; align-items: center;">
+                    <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid #10B981; 
+                         border-radius: 8px; padding: 10px 15px; margin-bottom: 8px; display: flex; align-items: center;">
                         <span class="online-badge">EN LIGNE</span> &nbsp;&nbsp; <b>{user}</b>
                     </div>
                     """,
