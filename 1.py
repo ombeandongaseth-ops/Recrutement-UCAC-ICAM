@@ -460,9 +460,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 l_val = p.get("lieu", "Lieu inconnu")
                 opts.append(f"{i+1}. {d_val} | {t_val} : {l_val}")
 
-            idx_del = st.selectbox(
-                "Sélectionner le créneau à annuler :", range(len(opts)), format_f
-                idx_del = st.selectbox(
+           idx_del = st.selectbox(
                 "Sélectionner le créneau à annuler :", 
                 range(len(opts)), 
                 format_func=lambda x: opts[x]
