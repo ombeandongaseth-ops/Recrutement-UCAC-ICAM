@@ -38,12 +38,34 @@ JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 HEURES_DISPONIBLES = [f"{h:02d}h00" for h in range(7, 19)]
 
 # ---------------------------------------------------------
-# CACHING DE L'IMAGE D'ARRIÈRE-PLAN
+# CONFIGURATION DE LA PAGE
+# ---------------------------------------------------------
+st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
+
+# ---------------------------------------------------------
+# CACHING DE L'IMAGE D'ARRIÈRE-PLAN ET DU LOGO SPLASH
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def Obtenir_bg_base64():
     image_path = None
     for ext in ["welcome.jpg", "welcome.jpeg", "welcome.png"]:
+        if os.path.exists(ext):
+            image_path = ext
+            break
+    if image_path:
+        try:
+            with open(image_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode()
+                mime = "image/jpeg" if image_path.endswith((".jpg", ".jpeg")) else "image/png"
+                return f"data:{mime};base64,{encoded}"
+        except Exception:
+            return None
+    return None
+
+@st.cache_data(show_spinner=False)
+def Obtenir_logo_splash_base64():
+    image_path = None
+    for ext in ["logo_splash.png", "logo_splash.jpg", "logo_splash.jpeg"]:
         if os.path.exists(ext):
             image_path = ext
             break
@@ -186,10 +208,8 @@ def obtenir_utilisateurs_en_ligne():
     return sorted(en_ligne)
 
 # ---------------------------------------------------------
-# STYLES CSS SUR MESURE
+# STYLES CSS SUR MESURE & ANIMATION SPLASH SCREEN
 # ---------------------------------------------------------
-st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
-
 bg_data = Obtenir_bg_base64()
 bg_css = f"""
 .stApp {{
@@ -204,6 +224,45 @@ st.markdown(
     {bg_css}
     
     #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
+
+    /* Animation du Splash Screen */
+    @keyframes fadeInOut {{
+        0% {{ opacity: 0; transform: scale(0.95); }}
+        50% {{ opacity: 1; transform: scale(1); }}
+        100% {{ opacity: 0; transform: scale(1.05); }}
+    }}
+
+    .splash-container {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 75vh;
+        text-align: center;
+    }}
+
+    .splash-image {{
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #1B72E8;
+        box-shadow: 0 0 25px rgba(27, 114, 232, 0.5);
+        animation: fadeInOut 2s ease-in-out infinite;
+    }}
+
+    .splash-title {{
+        font-size: 26px;
+        font-weight: bold;
+        margin-top: 20px;
+        color: #FFFFFF;
+    }}
+
+    .splash-subtitle {{
+        font-size: 14px;
+        color: #A0A5B1;
+        margin-top: 8px;
+    }}
 
     /* Positionnement et style des boutons de navigation */
     div.stButton > button {{
@@ -294,6 +353,34 @@ if "page_active" not in st.session_state:
     st.session_state.page_active = "Accueil"
 if "tirage_temp_l1" not in st.session_state:
     st.session_state.tirage_temp_l1 = []
+if "splash_done" not in st.session_state:
+    st.session_state.splash_done = False
+
+# ---------------------------------------------------------
+# SPLASH SCREEN / ÉCRAN DE DÉMARRAGE ANIMÉ
+# ---------------------------------------------------------
+if not st.session_state.splash_done:
+    splash_placeholder = st.empty()
+    logo_data = Obtenir_logo_splash_base64()
+    
+    img_tag = f'<img src="{logo_data}" class="splash-image"/>' if logo_data else '<div style="font-size:60px;">🎓</div>'
+
+    with splash_placeholder.container():
+        st.markdown(
+            f"""
+            <div class="splash-container">
+                {img_tag}
+                <div class="splash-title">UCAC-ICAM</div>
+                <div class="splash-subtitle">Chargement de la plateforme de recrutement...</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        time.sleep(2.5)
+        
+    splash_placeholder.empty()
+    st.session_state.splash_done = True
+    st.rerun()
 
 # ---------------------------------------------------------
 # PAGE DE CONNEXION INITIALE
