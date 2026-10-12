@@ -306,10 +306,11 @@ if not st.session_state.user_email:
     with col_box:
         with st.form("login_form"):
             st.markdown("#### 🔑 Connexion")
-            email_input = st.text_input("Adresse e-mail :", placeholder="exemple@ucac-icam.com").strip().lower()
+            email_input = st.text_input("Adresse e-mail institutionnelle :", placeholder="exemple@ucac-icam.com").strip().lower()
             if st.form_submit_button("Se connecter"):
-                if not email_input or "@" not in email_input:
-                    st.error("⚠️ Veuillez entrer une adresse e-mail valide.")
+                domaine_valide = email_input.endswith("@ucac-icam.com") or email_input.endswith("@2030.ucac-icam.com")
+                if not email_input or "@" not in email_input or not domaine_valide:
+                    st.error("⚠️ Veuillez entrer une adresse e-mail institutionnelle valide (@ucac-icam.com ou @2030.ucac-icam.com).")
                 else:
                     st.session_state.user_email = email_input
                     st.session_state.is_admin = email_input in [e.lower() for e in ADMIN_EMAILS]
@@ -655,6 +656,15 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             df_cand = pd.DataFrame(st.session_state.candidats)
             st.dataframe(df_cand, use_container_width=True)
 
+            # Export des candidatures en CSV
+            csv_data = df_cand.to_csv(index=False, encoding="utf-8").encode("utf-8")
+            st.download_button(
+                label="📥 Télécharger la liste des volontaires (CSV)",
+                data=csv_data,
+                file_name="volontaires_recrutement.csv",
+                mime="text/csv",
+            )
+
             st.markdown("---")
             st.markdown("### 🚫 Retirer un volontaire du recrutement")
             noms_volontaires = [c["nom"] for c in st.session_state.candidats]
@@ -664,10 +674,11 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                 st.session_state.candidats = [c for c in st.session_state.candidats if c["nom"] != vol_a_retirer]
                 sauvegarder_candidats(st.session_state.candidats)
 
+                # Nettoyage sécurisé du volontaire dans les plannings
                 for p in st.session_state.planning:
                     if "groupe" in p and p["groupe"]:
                         membres = [m.strip() for m in p["groupe"].split(",")]
-                        membres_filtres = [m for m in membres if not m.startswith(vol_a_retirer)]
+                        membres_filtres = [m for m in membres if not m.lower().startswith(f"{vol_a_retirer.lower()} (")]
                         p["groupe"] = ", ".join(membres_filtres)
                 sauvegarder_planning(st.session_state.planning)
 
@@ -687,9 +698,9 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
 
                     c_acc, c_ref = st.columns(2)
                     if c_acc.button(f"🟢 Accorder Feu Vert", key=f"acc_fv_{idx}"):
-                        nom_des = d.get("nom", "").lower()
+                        nom_des = d.get("nom", "").strip().lower()
                         st.session_state.candidats = [
-                            c for c in st.session_state.candidats if c["nom"].lower() not in nom_des
+                            c for c in st.session_state.candidats if c["nom"].strip().lower() != nom_des
                         ]
                         sauvegarder_candidats(st.session_state.candidats)
                         st.session_state.desistements.pop(idx)
