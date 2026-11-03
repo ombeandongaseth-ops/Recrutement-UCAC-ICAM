@@ -86,6 +86,31 @@ def heure_en_entier(h):
         return 0
 
 
+def colonnes_centrees(spec):
+    """Colonnes alignées verticalement au centre (compatible avec les anciennes versions de Streamlit)."""
+    try:
+        return st.columns(spec, vertical_alignment="center")
+    except TypeError:
+        return st.columns(spec)
+
+
+def afficher_tableau(df):
+    """Affiche un tableau pleine largeur, quelle que soit la version de Streamlit."""
+    for options in ({"width": "stretch"}, {"use_container_width": True}, {}):
+        try:
+            st.dataframe(df, **options)
+            return
+        except Exception:
+            continue
+
+
+def texte_sur(valeur):
+    """Convertit une valeur en texte ('' si vide ou NaN)."""
+    if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)):
+        return ""
+    return str(valeur)
+
+
 @st.cache_resource
 def obtenir_verrou():
     """Verrou partagé entre toutes les sessions pour éviter la corruption des données."""
@@ -121,8 +146,43 @@ def obtenir_url_db():
     return os.environ.get("DATABASE_URL") or None
 
 
+def _secret(nom, defaut=None):
+    try:
+        valeur = st.secrets.get(nom)
+        if valeur:
+            return str(valeur)
+    except Exception:
+        pass
+    return os.environ.get(nom) or defaut
+
+
+def obtenir_config_github():
+    """(jeton, 'proprietaire/depot', branche, dossier) ou None si GitHub n'est pas configuré."""
+    jeton = _secret("GITHUB_TOKEN")
+    depot = _secret("GITHUB_REPO")
+    if not jeton or not depot:
+        return None
+    return jeton, depot.strip("/"), _secret("GITHUB_BRANCH", "main"), _secret("GITHUB_DATA_DIR", "data").strip("/")
+
+
+def nom_backend():
+    """'github' si configuré, sinon 'postgres' si DATABASE_URL existe, sinon 'local' (temporaire)."""
+    if obtenir_config_github():
+        return "github"
+    if obtenir_url_db():
+        return "postgres"
+    return "local"
+
+
 def stockage_persistant_actif():
-    return obtenir_url_db() is not None
+    return nom_backend() != "local"
+
+
+def _backend_pour(fichier):
+    # La présence « qui est en ligne » change toutes les 30 s : inutile (et trop lourd) à versionner
+    if fichier == FICHIER_PRESENCE:
+        return "local"
+    return nom_backend()
 
 
 @st.cache_resource(show_spinner=False)
@@ -168,29 +228,171 @@ def _charger_tout_db():
         _CACHE_RUN["charge"] = True
 
 
-def lire_texte(fichier):
-    """Retourne le contenu texte d'un « fichier » de données, ou None s'il n'existe pas encore."""
-    if stockage_persistant_actif():
-        _charger_tout_db()
-        if fichier in _CACHE_RUN["donnees"]:
-            return _CACHE_RUN["donnees"][fichier]
-        # Migration automatique : première utilisation de la base avec d'anciens CSV locaux
-        if os.path.exists(fichier):
-            with open(fichier, "r", encoding="utf-8", newline="") as f:
-                texte = f.read()
-            ecrire_texte(fichier, texte)
-            return texte
-        return None
+# ----- Backend GitHub : un dépôt PRIVÉ dédié aux données, un fichier = un fichier du dépôt -----
+DUREE_CACHE_GITHUB = 15  # secondes : évite de rappeler l'API GitHub à chaque clic
+
+
+@st.cache_resource(show_spinner=False)
+def _cache_github():
+    """Cache partagé entre toutes les sessions : {fichier: {texte, sha, t, etag}} + '__meta__'."""
+    return {}
+
+
+def _gh_headers(token):
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _gh_url(fichier):
+    from urllib.parse import quote
+
+    _, depot, _, dossier = obtenir_config_github()
+    chemin = f"{dossier}/{fichier}" if dossier else fichier
+    return f"https://api.github.com/repos/{depot}/contents/{quote(chemin)}"
+
+
+def _github_lire(fichier, forcer=False):
+    """Retourne (texte, sha). (None, None) si le fichier n'existe pas encore dans le dépôt."""
+    import requests
+
+    token, _, branche, _ = obtenir_config_github()
+    cache = _cache_github()
+    entree = cache.get(fichier)
+    if entree and not forcer and time.time() - entree["t"] < DUREE_CACHE_GITHUB:
+        return entree["texte"], entree["sha"]
+
+    entetes = _gh_headers(token)
+    if entree and entree.get("etag"):
+        entetes["If-None-Match"] = entree["etag"]  # une réponse 304 ne consomme pas le quota
+    r = requests.get(_gh_url(fichier), headers=entetes, params={"ref": branche}, timeout=15)
+
+    if r.status_code == 304 and entree:
+        entree["t"] = time.time()
+        return entree["texte"], entree["sha"]
+    if r.status_code == 404:
+        cache[fichier] = {"texte": None, "sha": None, "t": time.time(), "etag": None}
+        return None, None
+    if r.status_code != 200:
+        raise RuntimeError(f"GitHub a répondu {r.status_code}")
+
+    j = r.json()
+    if not isinstance(j, dict):
+        raise RuntimeError("Chemin GitHub invalide (un dossier a été trouvé à la place d'un fichier)")
+    if j.get("size", 0) == 0:
+        octets = b""
+    elif j.get("encoding") == "base64" and j.get("content"):
+        octets = base64.b64decode(j["content"])
+    else:  # fichier de plus de 1 Mo : lecture via l'API « blob »
+        rb = requests.get(j["git_url"], headers=_gh_headers(token), timeout=30)
+        if rb.status_code != 200:
+            raise RuntimeError(f"GitHub a répondu {rb.status_code}")
+        octets = base64.b64decode(rb.json()["content"])
+    texte = octets.decode("utf-8-sig")
+    cache[fichier] = {"texte": texte, "sha": j["sha"], "t": time.time(), "etag": r.headers.get("ETag")}
+    return texte, j["sha"]
+
+
+def _github_ecrire(fichier, texte):
+    """Crée ou met à jour le fichier dans le dépôt (un commit par modification)."""
+    import requests
+
+    token, _, branche, _ = obtenir_config_github()
+    contenu = texte if texte else "\n"  # GitHub n'aime pas les fichiers totalement vides
+    for tentative in range(3):
+        _, sha = _github_lire(fichier, forcer=(tentative > 0))
+        corps = {
+            "message": f"data: mise à jour de {fichier}",
+            "content": base64.b64encode(contenu.encode("utf-8")).decode("ascii"),
+            "branch": branche,
+        }
+        if sha:
+            corps["sha"] = sha
+        r = requests.put(_gh_url(fichier), headers=_gh_headers(token), json=corps, timeout=20)
+        if r.status_code in (200, 201):
+            nouveau_sha = r.json()["content"]["sha"]
+            _cache_github()[fichier] = {"texte": contenu, "sha": nouveau_sha, "t": time.time(), "etag": None}
+            return
+        if r.status_code in (409, 422) and tentative < 2:
+            continue  # le fichier a changé entre-temps : on relit le sha le plus récent puis on réessaie
+        raise RuntimeError(f"Écriture GitHub refusée ({r.status_code})")
+
+
+def _verifier_github():
+    """Vérifie le jeton, le dépôt et le droit d'écriture ; mémorise si le dépôt est privé."""
+    import requests
+
+    token, depot, _, _ = obtenir_config_github()
+    r = requests.get(f"https://api.github.com/repos/{depot}", headers=_gh_headers(token), timeout=15)
+    if r.status_code == 401:
+        raise RuntimeError("Jeton GitHub invalide ou expiré (401)")
+    if r.status_code == 404:
+        raise RuntimeError("Dépôt introuvable, ou jeton sans accès à ce dépôt (404)")
+    if r.status_code != 200:
+        raise RuntimeError(f"GitHub a répondu {r.status_code}")
+    j = r.json()
+    permissions = j.get("permissions")
+    if permissions is not None and not permissions.get("push"):
+        raise RuntimeError("Le jeton n'a pas le droit d'écrire dans ce dépôt (permission « Contents : Read and write »)")
+    _cache_github()["__meta__"] = {"prive": bool(j.get("private"))}
+
+
+def depot_github_est_public():
+    meta = _cache_github().get("__meta__")
+    return bool(meta) and not meta["prive"]
+
+
+# ----- Accès local (ancien fonctionnement) -----
+def _lire_local(fichier):
     if not os.path.exists(fichier):
         return None
     with open(fichier, "r", encoding="utf-8", newline="") as f:
         return f.read()
 
 
+def _ecrire_local(fichier, texte):
+    tmp = f"{fichier}.tmp"
+    with open(tmp, "w", newline="", encoding="utf-8") as f:
+        f.write(texte)
+    os.replace(tmp, fichier)
+
+
+def lire_texte(fichier):
+    """Retourne le contenu texte d'un « fichier » de données, ou None s'il n'existe pas encore."""
+    backend = _backend_pour(fichier)
+
+    if backend == "github":
+        texte, _ = _github_lire(fichier)
+        if texte is None:
+            # Migration automatique : première utilisation de GitHub avec d'anciens CSV locaux
+            ancien = _lire_local(fichier)
+            if ancien is not None:
+                ecrire_texte(fichier, ancien)
+                return ancien
+        return texte
+
+    if backend == "postgres":
+        _charger_tout_db()
+        if fichier in _CACHE_RUN["donnees"]:
+            return _CACHE_RUN["donnees"][fichier]
+        # Migration automatique : première utilisation de la base avec d'anciens CSV locaux
+        ancien = _lire_local(fichier)
+        if ancien is not None:
+            ecrire_texte(fichier, ancien)
+        return ancien
+
+    return _lire_local(fichier)
+
+
 def ecrire_texte(fichier, texte):
-    """Enregistre le contenu texte d'un « fichier » de données (base PostgreSQL ou fichier local)."""
+    """Enregistre le contenu texte d'un « fichier » de données (GitHub, PostgreSQL ou fichier local)."""
+    backend = _backend_pour(fichier)
     with obtenir_verrou():
-        if stockage_persistant_actif():
+        if backend == "github":
+            _github_ecrire(fichier, texte)
+        elif backend == "postgres":
             _executer_db(
                 """
                 INSERT INTO donnees (nom, contenu) VALUES (%s, %s)
@@ -200,10 +402,7 @@ def ecrire_texte(fichier, texte):
             )
             _CACHE_RUN["donnees"][fichier] = texte
         else:
-            tmp = f"{fichier}.tmp"
-            with open(tmp, "w", newline="", encoding="utf-8") as f:
-                f.write(texte)
-            os.replace(tmp, fichier)
+            _ecrire_local(fichier, texte)
 
 
 def ecrire_atomique(fichier, fonction_ecriture):
@@ -214,17 +413,26 @@ def ecrire_atomique(fichier, fonction_ecriture):
 
 
 def verifier_stockage():
-    """Stoppe l'application si la base est injoignable (évite d'écraser des données par du vide)."""
-    if stockage_persistant_actif():
-        try:
+    """Stoppe l'application si le stockage en ligne est injoignable (évite d'écraser des données par du vide)."""
+    backend = nom_backend()
+    if backend == "local":
+        return
+    try:
+        if backend == "github":
+            _verifier_github()
+            for nom in FICHIERS_SAUVEGARDE:  # lecture de contrôle : échoue si le dépôt/branche est incorrect
+                _github_lire(nom)
+        else:
             _charger_tout_db()
-        except Exception as e:
-            st.error(
-                "❌ Impossible de joindre la base de données. Par sécurité, l'application est suspendue "
-                "pour ne pas écraser vos données. Vérifiez `DATABASE_URL` puis rechargez la page."
-            )
-            st.caption(f"Détail technique : {type(e).__name__}")
-            st.stop()
+    except Exception as e:
+        cible = "GITHUB_TOKEN / GITHUB_REPO" if backend == "github" else "DATABASE_URL"
+        st.error(
+            "❌ Impossible de joindre le stockage en ligne. Par sécurité, l'application est suspendue "
+            f"pour ne pas écraser vos données. Vérifiez `{cible}` puis rechargez la page."
+        )
+        detail = str(e) if isinstance(e, RuntimeError) else type(e).__name__
+        st.caption(f"Détail technique : {detail}")
+        st.stop()
 
 
 def construire_sauvegarde_zip():
@@ -505,123 +713,243 @@ bg_css = (
     else ".stApp { background-color: #121417; color: #FFFFFF; }"
 )
 
-st.markdown(
-    f"""
-    <style>
-    {bg_css}
+CSS_APP = """
+:root {
+    --brand: #3B82F6;
+    --brand-2: #6D5DF6;
+    --glass: rgba(18, 21, 28, 0.74);
+    --glass-border: rgba(255, 255, 255, 0.10);
+    --muted: #A0A5B1;
+}
 
-    #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
+/* ---------- Base ---------- */
+.stApp, .stApp p, .stApp label, .stApp button, .stApp input, .stApp textarea,
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5 {
+    font-family: 'Inter', 'Source Sans Pro', sans-serif;
+}
+#MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
 
-    /* Animation du Splash Screen */
-    @keyframes fadeInOut {{
-        0% {{ opacity: 0; transform: scale(0.95); }}
-        50% {{ opacity: 1; transform: scale(1); }}
-        100% {{ opacity: 0; transform: scale(1.05); }}
-    }}
+.block-container {
+    max-width: 1100px !important;
+    padding-top: 1.8rem !important;
+    padding-bottom: 3rem !important;
+}
+hr { border-color: rgba(255,255,255,0.12) !important; margin: 1.2rem 0 !important; }
 
-    .splash-container {{
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 75vh;
-        text-align: center;
-    }}
+/* ---------- En-tête ---------- */
+h1 {
+    font-weight: 800 !important;
+    letter-spacing: -0.5px;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: linear-gradient(90deg, #FFFFFF 30%, #93C5FD 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.app-subtitle { color: var(--muted); font-size: 14px; margin-top: 4px; }
+h3 { font-weight: 700 !important; }
 
-    .splash-image {{
-        width: 160px;
-        height: 160px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid #1B72E8;
-        box-shadow: 0 0 25px rgba(27, 114, 232, 0.5);
-        animation: fadeInOut 2s ease-in-out infinite;
-    }}
+/* ---------- Boutons ---------- */
+.stButton, [data-testid="stButton"],
+div[data-testid="stElementContainer"]:has(> .stButton),
+div[data-testid="stElementContainer"]:has(> [data-testid="stButton"]) { width: 100% !important; }
 
-    .splash-title {{
-        font-size: 26px;
-        font-weight: bold;
-        margin-top: 20px;
-        color: #FFFFFF;
-    }}
+div.stButton > button, div[data-testid="stFormSubmitButton"] > button, div.stDownloadButton > button {
+    width: 100% !important;
+    height: 46px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    backdrop-filter: blur(10px);
+    transition: all 0.18s ease-in-out !important;
+}
+div.stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover,
+div.stDownloadButton > button:hover {
+    background-color: rgba(59, 130, 246, 0.28) !important;
+    border-color: #60A5FA !important;
+    color: #FFFFFF !important;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+/* Bouton actif (page courante) et boutons principaux */
+div.stButton > button[kind="primary"], div.stButton > button[data-testid="stBaseButton-primary"],
+div[data-testid="stFormSubmitButton"] > button {
+    background: linear-gradient(135deg, #1B72E8, #6D5DF6) !important;
+    border-color: transparent !important;
+    box-shadow: 0 6px 20px rgba(27, 114, 232, 0.35);
+}
+div[data-testid="stFormSubmitButton"] > button:hover {
+    filter: brightness(1.1);
+    background: linear-gradient(135deg, #1B72E8, #6D5DF6) !important;
+}
+/* Bouton profil arrondi, engrenage compact */
+.st-key-top_profile_btn button { border-radius: 999px !important; }
+.st-key-btn_admin_gear button { padding: 0 !important; font-size: 18px !important; }
 
-    .splash-subtitle {{
-        font-size: 14px;
-        color: #A0A5B1;
-        margin-top: 8px;
-    }}
+/* ---------- Profil déroulant ---------- */
+.compact-profile-box {
+    background-color: #FFFFFF;
+    color: #212529;
+    border-radius: 14px;
+    padding: 10px 16px;
+    box-shadow: 0px 10px 30px rgba(0,0,0,0.4);
+    font-size: 13px;
+    border: 1px solid #E5E7EB;
+    max-width: 320px;
+    margin-left: auto;
+    margin-bottom: 8px;
+}
+.profile-info-line {
+    padding: 6px 0;
+    color: #333333;
+    border-bottom: 1px solid #E9ECEF;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.profile-info-line:last-child { border-bottom: none; }
 
-    /* Positionnement et style des boutons de navigation */
-    div.stButton > button {{
-        width: 100% !important;
-        height: 50px !important;
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-        background-color: rgba(28, 32, 38, 0.85) !important;
-        color: #FFFFFF !important;
-        border: 1px solid rgba(255, 255, 255, 0.25) !important;
-        backdrop-filter: blur(8px);
-        transition: all 0.2s ease-in-out !important;
-    }}
-    div.stButton > button:hover {{
-        background-color: #1B72E8 !important;
-        border-color: #1B72E8 !important;
-        color: #FFFFFF !important;
-    }}
+/* ---------- Cartes planning / listes ---------- */
+.date-header {
+    font-size: 17px; font-weight: 700; margin: 24px 0 10px; color: #93C5FD;
+    display: flex; align-items: center; gap: 10px;
+}
+.date-header::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.14); }
 
-    /* Profil déroulant compact */
-    .compact-profile-box {{
-        background-color: #FFFFFF;
-        color: #212529;
-        border-radius: 8px;
-        padding: 10px 14px;
-        box-shadow: 0px 4px 16px rgba(0,0,0,0.3);
-        font-size: 13px;
-        border: 1px solid #CCCCCC;
-        max-width: 320px;
-        margin-left: auto;
-    }}
-    .profile-info-line {{
-        padding: 5px 0;
-        color: #333333;
-        border-bottom: 1px solid #E9ECEF;
-        font-size: 12px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }}
+.event-card {
+    background-color: var(--glass);
+    color: #FFFFFF;
+    border: 1px solid var(--glass-border);
+    border-left: 4px solid var(--brand);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    backdrop-filter: blur(10px);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.event-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.38); }
+.event-card.stand { border-left-color: #F59E0B; }
+.event-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.event-title { font-weight: 700; font-size: 17px; }
+.event-tag {
+    margin-left: auto; font-size: 11px; font-weight: 700; padding: 3px 10px;
+    border-radius: 999px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.tag-ecole { background: rgba(59,130,246,0.22); color: #93C5FD; }
+.tag-stand { background: rgba(245,158,11,0.20); color: #FCD34D; }
+.event-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.chip {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    padding: 3px 10px; border-radius: 999px; font-size: 12.5px; color: #D1D5DB;
+}
+.event-team { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.team-label { font-size: 12px; color: #93C5FD; font-weight: 600; margin-right: 4px; }
+.member {
+    background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.32);
+    color: #DBEAFE; padding: 3px 10px; border-radius: 999px; font-size: 12.5px;
+}
+.list-card { display: flex; align-items: center; gap: 14px; padding: 12px 18px; }
+.num-badge {
+    min-width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+}
 
-    /* Cartes de planning et événements */
-    .event-card {{
-        background-color: rgba(28, 32, 38, 0.85);
-        color: #FFFFFF;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
-        border-left: 4px solid #1B72E8;
-        backdrop-filter: blur(5px);
-    }}
+.online-badge {
+    display: inline-block; background-color: #10B981; color: white;
+    padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;
+}
 
-    .online-badge {{
-        display: inline-block;
-        background-color: #10B981;
-        color: white;
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: bold;
-    }}
+/* ---------- Formulaires & champs ---------- */
+[data-testid="stForm"] {
+    background: var(--glass);
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 16px;
+    padding: 1.4rem 1.4rem 1rem;
+    backdrop-filter: blur(10px);
+}
+.stApp label, [data-testid="stWidgetLabel"] p { font-weight: 600 !important; font-size: 14px !important; color: #E5E7EB !important; }
+div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="textarea"],
+div[data-baseweb="base-input"] {
+    background-color: rgba(255,255,255,0.06) !important;
+    border-radius: 10px !important;
+    border-color: rgba(255,255,255,0.14) !important;
+}
+div[data-baseweb="input"]:focus-within > div, div[data-baseweb="select"]:focus-within > div,
+div[data-baseweb="textarea"]:focus-within { border-color: var(--brand) !important; box-shadow: 0 0 0 1px var(--brand); }
 
-    /* Sur petits écrans : cartes plus compactes */
-    @media (max-width: 640px) {{
-        .event-card {{ padding: 12px 14px; }}
-        .compact-profile-box {{ max-width: 100%; }}
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+/* ---------- Onglets ---------- */
+.stTabs [data-baseweb="tab-list"] { gap: 6px; overflow-x: auto; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.stTabs [data-baseweb="tab"] { border-radius: 10px 10px 0 0; padding: 8px 14px; font-weight: 600; white-space: nowrap; }
+.stTabs [aria-selected="true"] { color: #93C5FD !important; }
+.stTabs [data-baseweb="tab-highlight"] { background-color: var(--brand) !important; }
+
+/* ---------- Indicateurs, alertes, tableaux ---------- */
+[data-testid="stMetric"] {
+    background: var(--glass); border: 1px solid var(--glass-border);
+    padding: 14px 18px; border-radius: 14px;
+}
+[data-testid="stMetricLabel"] p { color: var(--muted) !important; font-weight: 500 !important; }
+[data-testid="stAlert"] { border-radius: 12px; }
+[data-testid="stExpander"] { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; }
+[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+
+/* ---------- Connexion ---------- */
+.login-hero { text-align: center; margin: 2.2rem 0 1.2rem; }
+.login-logo { font-size: 58px; line-height: 1; }
+.login-logo-img {
+    width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--brand); box-shadow: 0 0 25px rgba(27,114,232,0.5);
+}
+.login-title {
+    font-size: 34px; font-weight: 800; margin-top: 12px; letter-spacing: -0.5px;
+    background: linear-gradient(90deg, #FFFFFF 30%, #93C5FD 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.login-sub { color: #D1D5DB; font-size: 15px; margin-top: 8px; }
+
+/* ---------- Pied de page ---------- */
+.app-footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 6px 0 2px; }
+
+/* ---------- Animation du Splash Screen ---------- */
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.05); }
+}
+.splash-container {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 75vh; text-align: center;
+}
+.splash-image {
+    width: 160px; height: 160px; border-radius: 50%; object-fit: cover;
+    border: 3px solid #1B72E8; box-shadow: 0 0 25px rgba(27, 114, 232, 0.5);
+    animation: fadeInOut 2s ease-in-out infinite;
+}
+.splash-title { font-size: 26px; font-weight: bold; margin-top: 20px; color: #FFFFFF; }
+.splash-subtitle { font-size: 14px; color: #A0A5B1; margin-top: 8px; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 768px) {
+    .block-container { padding: 1rem 0.8rem 2.5rem !important; }
+    h1 { font-size: 1.7rem !important; }
+    .login-title { font-size: 26px; }
+    .event-card { padding: 12px 14px; }
+    .event-tag { margin-left: 0; }
+    div.stButton > button { height: 44px !important; font-size: 13px !important; }
+    [data-testid="stForm"] { padding: 1rem 0.9rem 0.6rem; }
+}
+"""
+
+FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');\n"
+# @import doit être la toute première règle de la feuille de style
+st.markdown("<style>" + FONT_IMPORT + bg_css + CSS_APP + "</style>", unsafe_allow_html=True)
+
 
 # ---------------------------------------------------------
 # INITIALISATION DES SESSIONS
@@ -675,8 +1003,16 @@ if not st.session_state.splash_done:
 # PAGE DE CONNEXION INITIALE
 # ---------------------------------------------------------
 if not st.session_state.user_email:
-    st.title("Recrutement UCAC-ICAM")
-    st.markdown("##### 👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM")
+    logo_login = Obtenir_logo_splash_base64()
+    logo_html = (
+        f'<img src="{logo_login}" class="login-logo-img"/>' if logo_login else '<div class="login-logo">🎓</div>'
+    )
+    st.markdown(
+        f'<div class="login-hero">{logo_html}'
+        '<div class="login-title">Recrutement UCAC-ICAM</div>'
+        '<div class="login-sub">👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM</div></div>',
+        unsafe_allow_html=True,
+    )
 
     c_m1, col_box, c_m2 = st.columns([1, 2, 1])
     with col_box:
@@ -715,33 +1051,48 @@ mettre_a_jour_presence(st.session_state.user_email)
 # ---------------------------------------------------------
 premiere_lettre = st.session_state.user_email[0].upper() if st.session_state.user_email else "U"
 user_prefix = st.session_state.user_email.split("@")[0].replace(".", " ").title()
+prenom_affiche = user_prefix.split(" ")[0] if user_prefix else "Mon compte"
 
-col_title, col_space, col_user_corner = st.columns([6, 1, 3])
+if st.session_state.is_admin:
+    col_title, col_user_corner, col_gear = colonnes_centrees([7, 2, 1])
+else:
+    col_title, col_user_corner = colonnes_centrees([7, 3])
+    col_gear = None
 
 with col_title:
     st.title("Recrutement UCAC-ICAM")
+    st.markdown(
+        '<div class="app-subtitle">Portail des descentes dans les écoles et des stands de sensibilisation</div>',
+        unsafe_allow_html=True,
+    )
 
 with col_user_corner:
-    c_btn_prof, c_btn_gear = st.columns([3, 1]) if st.session_state.is_admin else (col_user_corner, None)
-
-    if c_btn_prof.button(f"⚪ {premiere_lettre} ▾", key="top_profile_btn", help="Mon Compte"):
+    if st.button(f"👤 {prenom_affiche} ▾", key="top_profile_btn", help="Mon Compte"):
         st.session_state.show_profile_menu = not st.session_state.show_profile_menu
         st.rerun()
 
-    if st.session_state.is_admin and c_btn_gear:
-        if c_btn_gear.button("⚙️", key="btn_admin_gear", help="Administration"):
+if col_gear is not None:
+    with col_gear:
+        if st.button(
+            "⚙️",
+            key="btn_admin_gear",
+            help="Administration",
+            type="primary" if st.session_state.page_active == "Admin" else "secondary",
+        ):
             st.session_state.page_active = "Admin"
             st.rerun()
 
 # Menu déroulant Profil
 if st.session_state.show_profile_menu:
-    col_l, col_pop = st.columns([7, 3])
+    col_l, col_pop = st.columns([6, 4])
     with col_pop:
+        badge_admin = '<div class="profile-info-line">🛡️ Administrateur</div>' if st.session_state.is_admin else ""
         st.markdown(
             f"""
             <div class="compact-profile-box">
                 <div class="profile-info-line">👤 <b>{esc(user_prefix)}</b></div>
                 <div class="profile-info-line">📧 {esc(st.session_state.user_email)}</div>
+                {badge_admin}
             </div>
             """,
             unsafe_allow_html=True,
@@ -754,30 +1105,46 @@ if st.session_state.show_profile_menu:
             st.session_state.tirage_temp_l1 = []
             st.rerun()
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# EMPLACEMENT DES BOUTONS DE NAVIGATION
+# EMPLACEMENT DES BOUTONS DE NAVIGATION (le bouton de la page courante est mis en valeur)
 # ---------------------------------------------------------
 nav_cols = st.columns(4)
 
 with nav_cols[0]:
-    if st.button("📝 Inscription / Profil", key="nav_inscrire"):
+    if st.button(
+        "📝 Inscription / Profil",
+        key="nav_inscrire",
+        type="primary" if st.session_state.page_active == "Inscription" else "secondary",
+    ):
         st.session_state.page_active = "Inscription"
         st.rerun()
 
 with nav_cols[1]:
-    if st.button("📅 Planning des descentes", key="nav_planning"):
+    if st.button(
+        "📅 Planning des descentes",
+        key="nav_planning",
+        type="primary" if st.session_state.page_active == "Accueil" else "secondary",
+    ):
         st.session_state.page_active = "Accueil"
         st.rerun()
 
 with nav_cols[2]:
-    if st.button("🏫 Écoles de descentes", key="nav_ecoles"):
+    if st.button(
+        "🏫 Écoles de descentes",
+        key="nav_ecoles",
+        type="primary" if st.session_state.page_active == "Ecoles" else "secondary",
+    ):
         st.session_state.page_active = "Ecoles"
         st.rerun()
 
 with nav_cols[3]:
-    if st.button("⛺ Stands de sensibilisation", key="nav_stands"):
+    if st.button(
+        "⛺ Stands de sensibilisation",
+        key="nav_stands",
+        type="primary" if st.session_state.page_active == "Stands" else "secondary",
+    ):
         st.session_state.page_active = "Stands"
         st.rerun()
 
@@ -815,30 +1182,32 @@ if st.session_state.page_active == "Accueil":
             col_date = "date_mission" if "date_mission" in df_plan.columns else "jour"
             dates_uniques = list(dict.fromkeys(df_plan[col_date]))  # ordre chronologique conservé
             for d in dates_uniques:
-                st.markdown(
-                    f'<div style="font-size:18px; font-weight:bold; margin-top:15px; color:#60A5FA;">📅 {esc(d)}</div>',
-                    unsafe_allow_html=True,
-                )
+                st.markdown(f'<div class="date-header">📅 {esc(d)}</div>', unsafe_allow_html=True)
                 items_d = df_plan[df_plan[col_date] == d]
                 for _, row in items_d.iterrows():
-                    icon = "🏫" if row.get("type_mission") == "École" else "⛺"
-                    h_deb = row.get("heure_debut", row.get("heure", ""))
-                    h_fin = row.get("heure_fin", "")
+                    est_ecole = row.get("type_mission") == "École"
+                    icon = "🏫" if est_ecole else "⛺"
+                    h_deb = texte_sur(row.get("heure_debut", row.get("heure", "")))
+                    h_fin = texte_sur(row.get("heure_fin", ""))
                     horaire = f"{h_deb} - {h_fin}" if h_fin else h_deb
-                    quartier_info = (
-                        f" | 📍 {row.get('quartier', '')} ({row.get('arrondissement', '')})"
-                        if row.get("quartier")
-                        else ""
-                    )
+                    quartier = texte_sur(row.get("quartier", ""))
+                    arrondissement = texte_sur(row.get("arrondissement", ""))
+                    chip_lieu = ""
+                    if quartier:
+                        detail = f" ({arrondissement})" if arrondissement else ""
+                        chip_lieu = f'<span class="chip">📍 {esc(quartier)}{esc(detail)}</span>'
+                    membres = [m.strip() for m in texte_sur(row.get("groupe", "")).split(",") if m.strip()]
+                    chips_equipe = "".join(f'<span class="member">{esc(m)}</span>' for m in membres)
 
                     st.markdown(
-                        f"""
-                        <div class="event-card">
-                            <div style="font-weight:bold; font-size:16px;">{icon} {esc(row.get('lieu', ''))}</div>
-                            <div style="color:#A0A5B1; font-size:13px; margin-top:4px;">⏱️ {esc(horaire)}{esc(quartier_info)}</div>
-                            <div style="color:#93C5FD; font-size:13px; margin-top:6px;">👥 <b>Équipe constituée :</b> {esc(row.get('groupe', ''))}</div>
-                        </div>
-                        """,
+                        f'<div class="event-card {"ecole" if est_ecole else "stand"}">'
+                        f'<div class="event-head"><span>{icon}</span>'
+                        f'<span class="event-title">{esc(texte_sur(row.get("lieu", "")))}</span>'
+                        f'<span class="event-tag {"tag-ecole" if est_ecole else "tag-stand"}">'
+                        f'{"École" if est_ecole else "Stand"}</span></div>'
+                        f'<div class="event-meta"><span class="chip">⏱️ {esc(horaire)}</span>{chip_lieu}</div>'
+                        f'<div class="event-team"><span class="team-label">👥 Équipe constituée :</span>{chips_equipe}</div>'
+                        f'</div>',
                         unsafe_allow_html=True,
                     )
 
@@ -868,6 +1237,8 @@ elif st.session_state.page_active == "Inscription":
             jours_selectionnes = st.multiselect("Disponibilités :", JOURS_SEMAINE, default=JOURS_SEMAINE[:5])
 
             if st.form_submit_button("Valider mon inscription"):
+                # Relecture juste avant l'ajout : évite d'écraser une inscription faite à la même seconde
+                st.session_state.candidats = charger_candidats()
                 if not nom or not ecole or not quartier or not jours_selectionnes:
                     st.error("⚠️ Veuillez remplir tous les champs obligatoires.")
                 elif nom_deja_inscrit(nom):
@@ -894,6 +1265,7 @@ elif st.session_state.page_active == "Inscription":
                 if not nom_volontaire or not raison.strip():
                     st.error("⚠️ Veuillez renseigner votre nom ainsi que le motif de votre absence.")
                 else:
+                    st.session_state.desistements = charger_desistements()
                     st.session_state.desistements.append(
                         {
                             "email": st.session_state.user_email,
@@ -915,7 +1287,10 @@ elif st.session_state.page_active == "Ecoles":
         recherche_e = st.text_input("🔎 Rechercher une école :", key="recherche_ecole").strip().lower()
         for i, e in enumerate(sorted(st.session_state.ecoles_cibles, key=lambda x: x.lower()), 1):
             if recherche_e in e.lower():
-                st.markdown(f'<div class="event-card"><b>{i}. {esc(e)}</b></div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="event-card list-card"><span class="num-badge">{i}</span><b>🏫 {esc(e)}</b></div>',
+                    unsafe_allow_html=True,
+                )
 
 # --- STANDS ---
 elif st.session_state.page_active == "Stands":
@@ -927,7 +1302,10 @@ elif st.session_state.page_active == "Stands":
         recherche_s = st.text_input("🔎 Rechercher un stand :", key="recherche_stand").strip().lower()
         for i, s in enumerate(sorted(st.session_state.stands_cibles, key=lambda x: x.lower()), 1):
             if recherche_s in s.lower():
-                st.markdown(f'<div class="event-card"><b>{i}. {esc(s)}</b></div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="event-card stand list-card"><span class="num-badge">{i}</span><b>⛺ {esc(s)}</b></div>',
+                    unsafe_allow_html=True,
+                )
 
 # --- ADMIN ---
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
@@ -943,8 +1321,13 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     if not stockage_persistant_actif():
         st.warning(
             "💾 Stockage local temporaire : sur un hébergement comme Streamlit Community Cloud, les fichiers "
-            "CSV sont effacés à chaque redémarrage. Configurez `DATABASE_URL` (voir l'onglet "
+            "CSV sont effacés à chaque redémarrage. Configurez `GITHUB_TOKEN` et `GITHUB_REPO` (voir l'onglet "
             "« Stockage & Sauvegarde »)."
+        )
+    elif nom_backend() == "github" and depot_github_est_public():
+        st.error(
+            "🚨 Le dépôt GitHub des données est PUBLIC : les noms, quartiers et disponibilités des volontaires "
+            "sont visibles par tout le monde. Passez ce dépôt en privé (Settings > Danger Zone > Change visibility)."
         )
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
@@ -1132,7 +1515,7 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             if filtre_statut:
                 df_aff = df_aff[df_aff["statut_filiere"].isin(filtre_statut)]
 
-            st.dataframe(df_aff, use_container_width=True)
+            afficher_tableau(df_aff)
 
             # Export des candidatures en CSV
             csv_data = df_cand.to_csv(index=False, encoding="utf-8").encode("utf-8")
@@ -1240,7 +1623,26 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     # 6. STOCKAGE & SAUVEGARDE
     with tab6:
         st.markdown("### 💾 Stockage des données")
-        if stockage_persistant_actif():
+        backend_actuel = nom_backend()
+        if backend_actuel == "github":
+            jeton_, depot_, branche_, dossier_ = obtenir_config_github()
+            st.success(
+                f"✅ Stockage GitHub actif : dépôt `{depot_}`, branche `{branche_}`, dossier `{dossier_ or '/'}`. "
+                "Les données survivent aux redémarrages, aux redéploiements et à des mois d'inactivité."
+            )
+            st.caption(
+                "Chaque modification crée un commit dans le dépôt de données : l'historique Git sert de "
+                "sauvegarde, vous pouvez y retrouver n'importe quelle version précédente. "
+                "(La liste « Connexions en direct » reste locale, elle n'a pas besoin d'être conservée.)"
+            )
+            if st.button("🔌 Tester la connexion à GitHub", key="btn_test_gh"):
+                try:
+                    debut = time.time()
+                    _verifier_github()
+                    st.success(f"Connexion OK ({(time.time() - debut) * 1000:.0f} ms).")
+                except Exception as e:
+                    st.error(f"Échec de la connexion : {e if isinstance(e, RuntimeError) else type(e).__name__}")
+        elif backend_actuel == "postgres":
             st.success(
                 "✅ Stockage persistant actif (base PostgreSQL) : les données survivent aux redémarrages "
                 "et aux redéploiements."
@@ -1255,13 +1657,19 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
         else:
             st.warning(
                 "⚠️ Stockage local (fichiers CSV) : les données peuvent disparaître au redémarrage de "
-                "l'hébergement. Pour les rendre permanentes, ajoutez l'adresse de votre base PostgreSQL "
-                "dans les secrets de l'application :"
+                "l'hébergement. Pour les stocker sur GitHub, créez un dépôt PRIVÉ réservé aux données et "
+                "ajoutez dans les secrets de l'application (Settings > Secrets) :"
             )
-            st.code('DATABASE_URL = "postgresql://utilisateur:motdepasse@hote/base?sslmode=require"', language="toml")
+            st.code(
+                'GITHUB_TOKEN = "github_pat_xxxxxxxx"      # jeton limité à ce dépôt (Contents : Read and write)\n'
+                'GITHUB_REPO = "votre-compte/recrutement-donnees"\n'
+                'GITHUB_BRANCH = "main"                    # facultatif\n'
+                'GITHUB_DATA_DIR = "data"                  # facultatif',
+                language="toml",
+            )
             st.caption(
-                "Les CSV déjà présents sont copiés automatiquement dans la base au premier lancement. "
-                "Pensez aussi à ajouter `psycopg2-binary` à `requirements.txt`."
+                "Les CSV déjà présents sont copiés automatiquement vers GitHub au premier lancement. "
+                "Alternative : `DATABASE_URL` (base PostgreSQL)."
             )
 
         st.markdown("---")
@@ -1302,4 +1710,4 @@ elif st.session_state.page_active == "Admin":
 
 # Pied de page
 st.markdown("---")
-st.caption("© UCAC-ICAM — Plateforme de Recrutement")
+st.markdown('<div class="app-footer">© UCAC-ICAM — Plateforme de Recrutement</div>', unsafe_allow_html=True)
