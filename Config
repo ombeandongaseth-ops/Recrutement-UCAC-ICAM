@@ -1,0 +1,8 @@
+# À placer dans le dépôt de l'application sous : .streamlit/config.toml
+[theme]
+base = "dark"
+primaryColor = "#3B82F6"
+backgroundColor = "#121417"
+secondaryBackgroundColor = "#1C2026"
+textColor = "#F3F4F6"
+font = "sans serif"
