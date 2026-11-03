@@ -1,0 +1,3 @@
+   *.csv
+   *.tmp
+   .streamlit/secrets.toml
