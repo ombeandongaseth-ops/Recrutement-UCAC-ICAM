@@ -3,11 +3,13 @@ import csv
 import datetime
 import hmac
 import html
+import io
 import os
 import random
 import re
 import threading
 import time
+import zipfile
 
 import pandas as pd
 import streamlit as st
@@ -86,17 +88,165 @@ def heure_en_entier(h):
 
 @st.cache_resource
 def obtenir_verrou():
-    """Verrou partagé entre toutes les sessions pour éviter la corruption des CSV."""
-    return threading.Lock()
+    """Verrou partagé entre toutes les sessions pour éviter la corruption des données."""
+    return threading.RLock()
+
+
+# ---------------------------------------------------------
+# COUCHE DE STOCKAGE : PostgreSQL persistant OU fichiers locaux
+# ---------------------------------------------------------
+# Sur un hébergement comme Streamlit Community Cloud, le disque est éphémère : les fichiers CSV
+# sont effacés à chaque redémarrage / redéploiement. Quand DATABASE_URL est défini (secrets ou
+# variable d'environnement), toutes les données sont donc stockées dans une base PostgreSQL
+# externe. Sans DATABASE_URL, l'application garde l'ancien fonctionnement (fichiers locaux).
+FICHIERS_SAUVEGARDE = [
+    FICHIER_CANDIDATS,
+    FICHIER_ECOLES,
+    FICHIER_STANDS,
+    FICHIER_PLANNING,
+    FICHIER_DEMANDES_DESISTEMENT,
+]
+
+# Cache valable uniquement pour l'exécution en cours (le script est ré-exécuté à chaque interaction)
+_CACHE_RUN = {"charge": False, "donnees": {}}
+
+
+def obtenir_url_db():
+    try:
+        url = st.secrets.get("DATABASE_URL")
+        if url:
+            return str(url)
+    except Exception:
+        pass
+    return os.environ.get("DATABASE_URL") or None
+
+
+def stockage_persistant_actif():
+    return obtenir_url_db() is not None
+
+
+@st.cache_resource(show_spinner=False)
+def _ouvrir_connexion(url):
+    import psycopg2  # nécessite `psycopg2-binary` dans requirements.txt
+
+    conn = psycopg2.connect(url, connect_timeout=10)
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS donnees (
+                nom TEXT PRIMARY KEY,
+                contenu TEXT NOT NULL,
+                maj TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+    return conn
+
+
+def _executer_db(sql, params=(), lecture=False):
+    """Exécute une requête ; rouvre la connexion et réessaie une fois si elle a été coupée."""
+    url = obtenir_url_db()
+    derniere_erreur = None
+    for _ in range(2):
+        try:
+            conn = _ouvrir_connexion(url)
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                return cur.fetchall() if lecture else None
+        except Exception as e:
+            derniere_erreur = e
+            _ouvrir_connexion.clear()
+    raise derniere_erreur
+
+
+def _charger_tout_db():
+    """Une seule requête par exécution : charge tout le contenu de la base en mémoire."""
+    if not _CACHE_RUN["charge"]:
+        lignes = _executer_db("SELECT nom, contenu FROM donnees", lecture=True)
+        _CACHE_RUN["donnees"] = {nom: contenu for nom, contenu in lignes}
+        _CACHE_RUN["charge"] = True
+
+
+def lire_texte(fichier):
+    """Retourne le contenu texte d'un « fichier » de données, ou None s'il n'existe pas encore."""
+    if stockage_persistant_actif():
+        _charger_tout_db()
+        if fichier in _CACHE_RUN["donnees"]:
+            return _CACHE_RUN["donnees"][fichier]
+        # Migration automatique : première utilisation de la base avec d'anciens CSV locaux
+        if os.path.exists(fichier):
+            with open(fichier, "r", encoding="utf-8", newline="") as f:
+                texte = f.read()
+            ecrire_texte(fichier, texte)
+            return texte
+        return None
+    if not os.path.exists(fichier):
+        return None
+    with open(fichier, "r", encoding="utf-8", newline="") as f:
+        return f.read()
+
+
+def ecrire_texte(fichier, texte):
+    """Enregistre le contenu texte d'un « fichier » de données (base PostgreSQL ou fichier local)."""
+    with obtenir_verrou():
+        if stockage_persistant_actif():
+            _executer_db(
+                """
+                INSERT INTO donnees (nom, contenu) VALUES (%s, %s)
+                ON CONFLICT (nom) DO UPDATE SET contenu = EXCLUDED.contenu, maj = now()
+                """,
+                (fichier, texte),
+            )
+            _CACHE_RUN["donnees"][fichier] = texte
+        else:
+            tmp = f"{fichier}.tmp"
+            with open(tmp, "w", newline="", encoding="utf-8") as f:
+                f.write(texte)
+            os.replace(tmp, fichier)
 
 
 def ecrire_atomique(fichier, fonction_ecriture):
-    """Écrit dans un fichier temporaire puis le remplace (évite les fichiers à moitié écrits)."""
-    with obtenir_verrou():
-        tmp = f"{fichier}.tmp"
-        with open(tmp, "w", newline="", encoding="utf-8") as f:
-            fonction_ecriture(f)
-        os.replace(tmp, fichier)
+    """Construit le contenu en mémoire puis l'enregistre d'un seul bloc (jamais à moitié écrit)."""
+    tampon = io.StringIO(newline="")
+    fonction_ecriture(tampon)
+    ecrire_texte(fichier, tampon.getvalue())
+
+
+def verifier_stockage():
+    """Stoppe l'application si la base est injoignable (évite d'écraser des données par du vide)."""
+    if stockage_persistant_actif():
+        try:
+            _charger_tout_db()
+        except Exception as e:
+            st.error(
+                "❌ Impossible de joindre la base de données. Par sécurité, l'application est suspendue "
+                "pour ne pas écraser vos données. Vérifiez `DATABASE_URL` puis rechargez la page."
+            )
+            st.caption(f"Détail technique : {type(e).__name__}")
+            st.stop()
+
+
+def construire_sauvegarde_zip():
+    """Archive ZIP contenant tous les fichiers de données (candidats, planning, écoles, stands, désistements)."""
+    tampon = io.BytesIO()
+    with zipfile.ZipFile(tampon, "w", zipfile.ZIP_DEFLATED) as z:
+        for nom in FICHIERS_SAUVEGARDE:
+            texte = lire_texte(nom)
+            if texte is not None:
+                z.writestr(nom, texte)
+    return tampon.getvalue()
+
+
+def restaurer_sauvegarde_zip(octets):
+    """Restaure les fichiers connus depuis une archive ZIP ; retourne la liste des fichiers restaurés."""
+    restaures = []
+    with zipfile.ZipFile(io.BytesIO(octets)) as z:
+        for nom in z.namelist():
+            if nom in FICHIERS_SAUVEGARDE:
+                ecrire_texte(nom, z.read(nom).decode("utf-8-sig"))
+                restaures.append(nom)
+    return restaures
 
 
 def obtenir_mot_de_passe_admin():
@@ -140,10 +290,11 @@ def Obtenir_logo_splash_base64():
 # FONCTIONS DE PERSISTANCE CSV & PRÉSENCE
 # ---------------------------------------------------------
 def charger_csv_liste(fichier):
-    if not os.path.exists(fichier):
+    texte = lire_texte(fichier)
+    if texte is None:
         return []
     try:
-        with open(fichier, "r", encoding="utf-8") as f:
+        with io.StringIO(texte, newline="") as f:
             items = [line.strip() for line in f.read().splitlines() if line.strip()]
             return sorted(items, key=lambda x: x.lower())
     except Exception:
@@ -161,10 +312,11 @@ def sauvegarder_csv_liste(fichier, liste_items):
 
 
 def charger_candidats():
-    if not os.path.exists(FICHIER_CANDIDATS):
+    texte = lire_texte(FICHIER_CANDIDATS)
+    if texte is None:
         return []
     try:
-        with open(FICHIER_CANDIDATS, "r", encoding="utf-8") as f:
+        with io.StringIO(texte, newline="") as f:
             reader = csv.DictReader(f)
             candidats = []
             for row in reader:
@@ -192,10 +344,11 @@ def sauvegarder_candidats(candidats):
 
 
 def charger_planning():
-    if not os.path.exists(FICHIER_PLANNING):
+    texte = lire_texte(FICHIER_PLANNING)
+    if texte is None:
         return []
     try:
-        with open(FICHIER_PLANNING, "r", encoding="utf-8") as f:
+        with io.StringIO(texte, newline="") as f:
             reader = csv.DictReader(f)
             planning = []
             for row in reader:
@@ -218,10 +371,11 @@ def sauvegarder_planning(planning):
 
 
 def charger_desistements():
-    if not os.path.exists(FICHIER_DEMANDES_DESISTEMENT):
+    texte = lire_texte(FICHIER_DEMANDES_DESISTEMENT)
+    if texte is None:
         return []
     try:
-        with open(FICHIER_DEMANDES_DESISTEMENT, "r", encoding="utf-8") as f:
+        with io.StringIO(texte, newline="") as f:
             desistements = list(csv.DictReader(f))
             return sorted(desistements, key=lambda x: (x.get("nom") or "").lower())
     except Exception:
@@ -245,39 +399,40 @@ def mettre_a_jour_presence(email):
     maintenant = time.time()
     with obtenir_verrou():
         presences = {}
-        if os.path.exists(FICHIER_PRESENCE):
-            try:
-                with open(FICHIER_PRESENCE, "r", encoding="utf-8") as f:
+        try:
+            texte = lire_texte(FICHIER_PRESENCE)
+            if texte:
+                with io.StringIO(texte, newline="") as f:
                     for row in csv.DictReader(f):
                         presences[row["email"]] = float(row["last_ping"])
-            except Exception:
-                pass
+        except Exception:
+            pass
 
         if email not in presences or (maintenant - presences[email]) > 30:
             presences[email] = maintenant
             presences = {e: t for e, t in presences.items() if maintenant - t < 300}
             try:
-                tmp = f"{FICHIER_PRESENCE}.tmp"
-                with open(tmp, "w", newline="", encoding="utf-8") as f:
+                def _ecrire(f):
                     writer = csv.DictWriter(f, fieldnames=["email", "last_ping"])
                     writer.writeheader()
                     for e, t in presences.items():
                         writer.writerow({"email": e, "last_ping": t})
-                os.replace(tmp, FICHIER_PRESENCE)
+
+                ecrire_atomique(FICHIER_PRESENCE, _ecrire)
             except Exception:
                 pass
 
 
 def obtenir_utilisateurs_en_ligne():
-    if not os.path.exists(FICHIER_PRESENCE):
-        return []
     maintenant = time.time()
     en_ligne = []
     try:
-        with open(FICHIER_PRESENCE, "r", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                if maintenant - float(row["last_ping"]) < 300:
-                    en_ligne.append(row["email"])
+        texte = lire_texte(FICHIER_PRESENCE)
+        if texte:
+            with io.StringIO(texte, newline="") as f:
+                for row in csv.DictReader(f):
+                    if maintenant - float(row["last_ping"]) < 300:
+                        en_ligne.append(row["email"])
     except Exception:
         pass
     return sorted(en_ligne)
@@ -483,6 +638,9 @@ if "tirage_temp_l1" not in st.session_state:
     st.session_state.tirage_temp_l1 = []
 if "splash_done" not in st.session_state:
     st.session_state.splash_done = False
+
+# Si la base persistante est configurée mais injoignable, on s'arrête plutôt que d'écraser des données
+verifier_stockage()
 
 # Données partagées : rechargées à chaque exécution pour que tous les utilisateurs voient les mêmes infos
 recharger_donnees_partagees()
@@ -782,13 +940,21 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
             "d'environnement) pour la protéger."
         )
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    if not stockage_persistant_actif():
+        st.warning(
+            "💾 Stockage local temporaire : sur un hébergement comme Streamlit Community Cloud, les fichiers "
+            "CSV sont effacés à chaque redémarrage. Configurez `DATABASE_URL` (voir l'onglet "
+            "« Stockage & Sauvegarde »)."
+        )
+
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
         [
             "📅 Planification (3 Auto + 2 Manuel)",
             "🟢 Connexions en direct",
             "👥 Volontaires & Suppression",
             "🚦 Demandes Feu Vert",
             "🏫/⛺ Lieux",
+            "💾 Stockage & Sauvegarde",
         ]
     )
 
@@ -1070,6 +1236,64 @@ elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
                     sauvegarder_csv_liste(FICHIER_STANDS, st.session_state.stands_cibles)
                     st.success("Stand supprimé.")
                     st.rerun()
+
+    # 6. STOCKAGE & SAUVEGARDE
+    with tab6:
+        st.markdown("### 💾 Stockage des données")
+        if stockage_persistant_actif():
+            st.success(
+                "✅ Stockage persistant actif (base PostgreSQL) : les données survivent aux redémarrages "
+                "et aux redéploiements."
+            )
+            if st.button("🔌 Tester la connexion à la base", key="btn_test_db"):
+                try:
+                    debut = time.time()
+                    _executer_db("SELECT 1", lecture=True)
+                    st.success(f"Connexion OK ({(time.time() - debut) * 1000:.0f} ms).")
+                except Exception as e:
+                    st.error(f"Échec de la connexion : {type(e).__name__}")
+        else:
+            st.warning(
+                "⚠️ Stockage local (fichiers CSV) : les données peuvent disparaître au redémarrage de "
+                "l'hébergement. Pour les rendre permanentes, ajoutez l'adresse de votre base PostgreSQL "
+                "dans les secrets de l'application :"
+            )
+            st.code('DATABASE_URL = "postgresql://utilisateur:motdepasse@hote/base?sslmode=require"', language="toml")
+            st.caption(
+                "Les CSV déjà présents sont copiés automatiquement dans la base au premier lancement. "
+                "Pensez aussi à ajouter `psycopg2-binary` à `requirements.txt`."
+            )
+
+        st.markdown("---")
+        st.markdown("### 📦 Sauvegarde complète")
+        st.caption("Volontaires, planning, écoles, stands et demandes de feu vert dans une seule archive ZIP.")
+        st.download_button(
+            "📥 Télécharger une sauvegarde complète (ZIP)",
+            data=construire_sauvegarde_zip(),
+            file_name=f"sauvegarde_recrutement_{datetime.date.today().isoformat()}.zip",
+            mime="application/zip",
+        )
+
+        st.markdown("#### ♻️ Restaurer une sauvegarde")
+        fichier_zip = st.file_uploader("Archive de sauvegarde (.zip) :", type=["zip"], key="upload_restore")
+        confirmer_restore = st.checkbox(
+            "Je comprends que la restauration remplace les données actuelles.", key="chk_restore"
+        )
+        if st.button("♻️ Restaurer cette sauvegarde", key="btn_restore"):
+            if not fichier_zip:
+                st.error("⚠️ Veuillez d'abord choisir une archive ZIP.")
+            elif not confirmer_restore:
+                st.error("⚠️ Cochez la case de confirmation pour continuer.")
+            else:
+                try:
+                    restaures = restaurer_sauvegarde_zip(fichier_zip.getvalue())
+                    if restaures:
+                        st.success(f"✅ {len(restaures)} fichier(s) restauré(s).")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Cette archive ne contient aucun fichier de données reconnu.")
+                except zipfile.BadZipFile:
+                    st.error("⚠️ Archive invalide.")
 
 # --- ACCÈS ADMIN REFUSÉ ---
 elif st.session_state.page_active == "Admin":
