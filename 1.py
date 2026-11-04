@@ -62,7 +62,7 @@ REGEX_EMAIL = re.compile(r"^[a-z0-9._%+\-]+@(2030\.)?ucac-icam\.com$")
 # ---------------------------------------------------------
 # CONFIGURATION DE LA PAGE
 # ---------------------------------------------------------
-st.set_page_config(page_title="Recrutement UCAC-ICAM", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Recrutement Ucac-Icam", page_icon="🎓", layout="wide")
 
 
 # ---------------------------------------------------------
@@ -457,8 +457,11 @@ def restaurer_sauvegarde_zip(octets):
     return restaures
 
 
-def obtenir_mot_de_passe_admin():
-    """Mot de passe admin optionnel : st.secrets['ADMIN_PASSWORD'] ou variable d'environnement."""
+MOT_DE_PASSE_ADMIN_PAR_DEFAUT = "icam2027"
+
+
+def mot_de_passe_admin_personnalise():
+    """Mot de passe défini dans les Secrets (ADMIN_PASSWORD) ou en variable d'environnement, sinon None."""
     try:
         mdp = st.secrets.get("ADMIN_PASSWORD")
         if mdp:
@@ -466,6 +469,11 @@ def obtenir_mot_de_passe_admin():
     except Exception:
         pass
     return os.environ.get("ADMIN_PASSWORD", "") or None
+
+
+def obtenir_mot_de_passe_admin():
+    """Mot de passe exigé aux administrateurs : celui des Secrets s'il existe, sinon la valeur par défaut."""
+    return mot_de_passe_admin_personnalise() or MOT_DE_PASSE_ADMIN_PAR_DEFAUT
 
 
 # ---------------------------------------------------------
@@ -987,7 +995,7 @@ if not st.session_state.splash_done:
             f"""
             <div class="splash-container">
                 {img_tag}
-                <div class="splash-title">UCAC-ICAM</div>
+                <div class="splash-title">Ucac-Icam</div>
                 <div class="splash-subtitle">Chargement de la plateforme de recrutement...</div>
             </div>
             """,
@@ -1009,8 +1017,8 @@ if not st.session_state.user_email:
     )
     st.markdown(
         f'<div class="login-hero">{logo_html}'
-        '<div class="login-title">Recrutement UCAC-ICAM</div>'
-        '<div class="login-sub">👋 Bienvenue sur le Portail de Recrutement UCAC-ICAM</div></div>',
+        '<div class="login-title">Recrutement Ucac-Icam</div>'
+        '<div class="login-sub">👋 Bienvenue sur le Portail de Recrutement Ucac-Icam</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -1034,7 +1042,7 @@ if not st.session_state.user_email:
                 else:
                     est_admin = email_input in [e.lower() for e in ADMIN_EMAILS]
                     mdp_admin = obtenir_mot_de_passe_admin()
-                    if est_admin and mdp_admin and not hmac.compare_digest(mdp_input, mdp_admin):
+                    if est_admin and not hmac.compare_digest(mdp_input.encode("utf-8"), mdp_admin.encode("utf-8")):
                         st.error("🔒 Mot de passe administrateur incorrect.")
                     else:
                         st.session_state.user_email = email_input
@@ -1060,7 +1068,7 @@ else:
     col_gear = None
 
 with col_title:
-    st.title("Recrutement UCAC-ICAM")
+    st.title("Recrutement Ucac-Icam")
     st.markdown(
         '<div class="app-subtitle">Portail des descentes dans les écoles et des stands de sensibilisation</div>',
         unsafe_allow_html=True,
@@ -1311,11 +1319,10 @@ elif st.session_state.page_active == "Stands":
 elif st.session_state.page_active == "Admin" and st.session_state.is_admin:
     st.subheader("⚙️ Zone d'Administration")
 
-    if not obtenir_mot_de_passe_admin():
-        st.warning(
-            "🔓 Aucun mot de passe administrateur n'est configuré : n'importe qui connaissant une adresse admin "
-            "peut accéder à cette zone. Définissez `ADMIN_PASSWORD` (dans `.streamlit/secrets.toml` ou en variable "
-            "d'environnement) pour la protéger."
+    if not mot_de_passe_admin_personnalise():
+        st.info(
+            "🔑 Le mot de passe administrateur par défaut est utilisé. Pour le changer sans modifier le code, "
+            "ajoutez `ADMIN_PASSWORD = \"votre-mot-de-passe\"` dans les Secrets de Streamlit."
         )
 
     if not stockage_persistant_actif():
@@ -1710,4 +1717,4 @@ elif st.session_state.page_active == "Admin":
 
 # Pied de page
 st.markdown("---")
-st.markdown('<div class="app-footer">© UCAC-ICAM — Plateforme de Recrutement</div>', unsafe_allow_html=True)
+st.markdown('<div class="app-footer">© Ucac-Icam — Plateforme de Recrutement</div>', unsafe_allow_html=True)
